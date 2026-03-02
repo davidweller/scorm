@@ -18,16 +18,13 @@ export async function generateModuleContentWithAI(
   }
 ): Promise<ModuleSection[]> {
   const openai = new OpenAI({ apiKey });
-  const exampleExcerpts = getExampleCourseExcerptsForModules();
+  const exampleExcerpts = getExampleCourseExcerptsForModules().trim();
+  const referenceBlock =
+    exampleExcerpts.length > 0
+      ? `\nMatch the structure and style of this reference course: clear Introduction, then content parts with headings, optional scenario, reflection prompts, and knowledge checks. Use a professional, direct tone and concrete examples where appropriate.\n\n${exampleExcerpts}\n\n---\n\n`
+      : "\n";
   const prompt = `You are an instructional designer. Generate module content as JSON.
-
-Match the structure and style of this reference course: clear Introduction, then content parts with headings, optional scenario, reflection prompts, and knowledge checks. Use a professional, direct tone and concrete examples where appropriate.
-
-${exampleExcerpts}
-
----
-
-Course topic: ${params.courseTopic}
+${referenceBlock}Course topic: ${params.courseTopic}
 Module title: ${params.moduleTitle}
 ${params.courseOverview ? `Course overview: ${params.courseOverview}` : ""}
 
@@ -68,16 +65,13 @@ export async function generateSingleSectionWithAI(
   const context = params.existingHeadings?.length
     ? `Existing section headings in this module: ${params.existingHeadings.join(", ")}. Generate content for the section at index ${params.sectionIndex}.`
     : `Generate content for section ${params.sectionIndex + 1} (zero-based index ${params.sectionIndex}).`;
-  const exampleExcerpts = getExampleCourseExcerptsForModules();
+  const exampleExcerpts = getExampleCourseExcerptsForModules().trim();
+  const referenceBlock =
+    exampleExcerpts.length > 0
+      ? `\nMatch the reference course style: professional, direct tone; concrete examples; clear heading; content 2-4 sentences; optional scenario; one reflection prompt; 1-3 knowledge checks.\n\n${exampleExcerpts}\n\n---\n\n`
+      : "\n";
   const prompt = `You are an instructional designer. Generate ONE module section as JSON.
-
-Match the reference course style: professional, direct tone; concrete examples; clear heading; content 2-4 sentences; optional scenario; one reflection prompt; 1-3 knowledge checks.
-
-${exampleExcerpts}
-
----
-
-Course topic: ${params.courseTopic}
+${referenceBlock}Course topic: ${params.courseTopic}
 Module title: ${params.moduleTitle}
 ${params.courseOverview ? `Course overview: ${params.courseOverview}` : ""}
 ${context}
