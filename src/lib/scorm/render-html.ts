@@ -66,9 +66,25 @@ export function renderCourseHtml(
   const modulesHtml = modules
     .sort((a, b) => a.order - b.order)
     .map((mod) => {
+      const moduleActivities = activities.filter((a) => a.moduleId === mod.id);
+      const referencedActivityIds = new Set<string>();
       const sectionsHtml = mod.sections
         .map(
-          (sec) => `
+          (sec) => {
+            const sectionActivities =
+              sec.activityIds
+                ?.map((id) => {
+                  referencedActivityIds.add(id);
+                  return moduleActivities.find((a) => a.id === id);
+                })
+                .filter((a): a is Activity => Boolean(a)) ?? [];
+            const sectionActivitiesHtml =
+              sectionActivities.length > 0
+                ? `<div class="activities">
+                    ${sectionActivities.map((a) => renderActivityHtml(a)).join("")}
+                  </div>`
+                : "";
+            return `
           <section class="content-section">
             <h3>${escapeHtml(sec.heading)}</h3>
             <div class="content">${sec.content ? sec.content.split(/\n/).filter(Boolean).map((p) => `<p>${escapeHtml(p)}</p>`).join("") : ""}</div>
@@ -76,15 +92,17 @@ export function renderCourseHtml(
             ${sec.reflectionPrompt ? `<div class="reflection"><strong>Reflection:</strong> ${escapeHtml(sec.reflectionPrompt)}</div>` : ""}
             ${sec.knowledgeChecks?.length ? `<ul class="knowledge-checks">${sec.knowledgeChecks.map((k) => `<li>${escapeHtml(k)}</li>`).join("")}</ul>` : ""}
             ${sec.resourceSuggestions?.length ? `<div class="resource-suggestions"><strong>Further reading:</strong><ul>${sec.resourceSuggestions.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul></div>` : ""}
+            ${sectionActivitiesHtml}
           </section>`
+          }
         )
         .join("");
       const videosHtml = mod.youtubeUrls.map(embedYoutube).join("");
-      const moduleActivities = activities.filter((a) => a.moduleId === mod.id);
+      const unplacedActivities = moduleActivities.filter((a) => !referencedActivityIds.has(a.id));
       const activitiesHtml =
-        moduleActivities.length > 0
+        unplacedActivities.length > 0
           ? `<div class="activities">
-              ${moduleActivities.map((a) => renderActivityHtml(a)).join("")}
+              ${unplacedActivities.map((a) => renderActivityHtml(a)).join("")}
             </div>`
           : "";
       return `

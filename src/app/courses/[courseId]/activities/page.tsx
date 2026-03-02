@@ -25,7 +25,11 @@ export default async function ActivitiesPage({
       <p className="mt-2 text-gray-600 dark:text-gray-400 mb-8">
         Add multiple choice or flashcards. Generate content with AI (or mock), edit, and assign to a module.
       </p>
-      <ActivitiesList courseId={courseId} initialActivities={activities} />
+      <ActivitiesList
+        courseId={courseId}
+        initialActivities={activities}
+        isCourseLocked={course.status === "ready_for_export"}
+      />
     </main>
   );
 }

@@ -7,9 +7,11 @@ import type { Activity } from "@/types";
 export function ActivitiesList({
   courseId,
   initialActivities,
+  isCourseLocked,
 }: {
   courseId: string;
   initialActivities: Activity[];
+  isCourseLocked: boolean;
 }) {
   const [activities, setActivities] = useState<Activity[]>(initialActivities);
   const [showAdd, setShowAdd] = useState(false);
@@ -49,6 +51,7 @@ export function ActivitiesList({
       <div className="flex flex-wrap gap-2 items-center">
         <button
           onClick={() => setShowAdd((s) => !s)}
+          disabled={isCourseLocked}
           className="rounded-md bg-primary px-4 py-2 text-onPrimary font-medium hover:brightness-95"
         >
           Add activity
@@ -82,7 +85,7 @@ export function ActivitiesList({
           <div className="flex gap-2">
             <button
               onClick={handleAdd}
-              disabled={adding}
+              disabled={adding || isCourseLocked}
               className="rounded-md bg-primary px-3 py-2 text-onPrimary text-sm hover:brightness-95 disabled:opacity-50"
             >
               {adding ? "Creating…" : "Create"}

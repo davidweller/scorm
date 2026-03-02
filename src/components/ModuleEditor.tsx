@@ -7,10 +7,12 @@ export function ModuleEditor({
   courseId,
   moduleId,
   initialModule,
+  isCourseLocked,
 }: {
   courseId: string;
   moduleId: string;
   initialModule: Module;
+  isCourseLocked: boolean;
 }) {
   const [module, setModule] = useState<Module>(initialModule);
   const [saving, setSaving] = useState(false);
@@ -28,7 +30,7 @@ export function ModuleEditor({
     setModule(initialModule);
   }, [initialModule]);
 
-  const isLocked = !!module.lockedAt;
+  const isLocked = isCourseLocked || !!module.lockedAt;
 
   async function save() {
     setError("");

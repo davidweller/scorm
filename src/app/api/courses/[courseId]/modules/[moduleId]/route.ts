@@ -12,6 +12,12 @@ export async function GET(
   if (!course) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
   }
+  if (course.status === "ready_for_export") {
+    return NextResponse.json(
+      { error: "Course is approved and locked" },
+      { status: 400 }
+    );
+  }
   const mod = await getModuleById(courseId, moduleId);
   if (!mod) {
     return NextResponse.json({ error: "Module not found" }, { status: 404 });

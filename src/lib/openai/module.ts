@@ -1,6 +1,22 @@
 import OpenAI from "openai";
 import type { ModuleSection } from "@/types";
 import { getExampleCourseExcerptsForModules } from "./example-course";
+import type { H5PActivityType } from "@/types";
+
+export interface GeneratedModuleDraftActivity {
+  type: H5PActivityType;
+  title?: string;
+  /**
+   * Place the activity inline after this section index (0-based).
+   * Example: 0 means after the first section.
+   */
+  placeAfterSectionIndex: number;
+}
+
+export interface GeneratedModuleDraft {
+  sections: ModuleSection[];
+  activities: GeneratedModuleDraftActivity[];
+}
 
 function parseJsonFromResponse(text: string): Record<string, unknown> {
   const trimmed = text.trim();
@@ -17,38 +33,8 @@ export async function generateModuleContentWithAI(
     courseOverview?: string;
   }
 ): Promise<ModuleSection[]> {
-  const openai = new OpenAI({ apiKey });
-  const exampleExcerpts = getExampleCourseExcerptsForModules().trim();
-  const referenceBlock =
-    exampleExcerpts.length > 0
-      ? `\nMatch the structure and style of this reference course: clear Introduction, then content parts with headings, optional scenario, reflection prompts, and knowledge checks. Use a professional, direct tone and concrete examples where appropriate.\n\n${exampleExcerpts}\n\n---\n\n`
-      : "\n";
-  const prompt = `You are an instructional designer. Generate module content as JSON.
-${referenceBlock}Course topic: ${params.courseTopic}
-Module title: ${params.moduleTitle}
-${params.courseOverview ? `Course overview: ${params.courseOverview}` : ""}
-
-Respond with ONLY a single JSON object: { "sections": [ { "heading": "...", "content": "...", "scenario": "... (optional)", "reflectionPrompt": "...", "knowledgeChecks": ["...", "..."], "resourceSuggestions": ["..."] }, ... ] }
-Create 3-4 sections. First section should be an Introduction. content and scenario can be 1-3 sentences. reflectionPrompt one sentence. knowledgeChecks 1-3 short questions.`;
-
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.6,
-  });
-  const content = completion.choices[0]?.message?.content;
-  if (!content) throw new Error("No response from OpenAI");
-  const raw = parseJsonFromResponse(content);
-  const sections = Array.isArray(raw.sections) ? raw.sections : [];
-  return sections.map((s: Record<string, unknown>, i: number) => ({
-    id: crypto.randomUUID(),
-    heading: typeof s.heading === "string" ? s.heading : `Section ${i + 1}`,
-    content: typeof s.content === "string" ? s.content : "",
-    scenario: typeof s.scenario === "string" ? s.scenario : undefined,
-    reflectionPrompt: typeof s.reflectionPrompt === "string" ? s.reflectionPrompt : undefined,
-    knowledgeChecks: Array.isArray(s.knowledgeChecks) ? s.knowledgeChecks.map(String) : [],
-    resourceSuggestions: Array.isArray(s.resourceSuggestions) ? s.resourceSuggestions.map(String) : undefined,
-  })) as ModuleSection[];
+  const draft = await generateModuleDraftWithAI(apiKey, params);
+  return draft.sections;
 }
 
 export async function generateSingleSectionWithAI(
@@ -96,4 +82,86 @@ content: 2-4 sentences. scenario optional. reflectionPrompt one sentence. knowle
     knowledgeChecks: Array.isArray(s.knowledgeChecks) ? s.knowledgeChecks.map(String) : [],
     resourceSuggestions: Array.isArray(s.resourceSuggestions) ? s.resourceSuggestions.map(String) : undefined,
   } as ModuleSection;
+}
+
+export async function generateModuleDraftWithAI(
+  apiKey: string,
+  params: {
+    courseTopic: string;
+    moduleTitle: string;
+    courseOverview?: string;
+  }
+): Promise<GeneratedModuleDraft> {
+  const openai = new OpenAI({ apiKey });
+  const exampleExcerpts = getExampleCourseExcerptsForModules().trim();
+  const referenceBlock =
+    exampleExcerpts.length > 0
+      ? `\nMatch the structure and style of this reference course: clear Introduction, then content parts with headings, optional scenario, reflection prompts, and knowledge checks. Write in a W1-style flow and include activity writeups in the section content where appropriate (e.g. \"Activity: ...\" with brief instructions).\n\n${exampleExcerpts}\n\n---\n\n`
+      : "\n";
+  const prompt = `You are an instructional designer. Generate a full module draft as JSON.
+
+${referenceBlock}Course topic: ${params.courseTopic}
+Module title: ${params.moduleTitle}
+${params.courseOverview ? `Course overview: ${params.courseOverview}` : ""}
+
+Respond with ONLY a single JSON object with this exact structure:
+{
+  "sections": [
+    {
+      "heading": "...",
+      "content": "...",
+      "scenario": "... (optional)",
+      "reflectionPrompt": "...",
+      "knowledgeChecks": ["...", "..."],
+      "resourceSuggestions": ["..."]
+    }
+  ],
+  "activities": [
+    { "type": "multiple_choice" | "flashcards", "title": "Optional short label", "placeAfterSectionIndex": 0 }
+  ]
+}
+
+Rules:
+- Create 3-6 sections. First section must be an Introduction.
+- content can be multi-paragraph (use newlines). Keep each paragraph concise.
+- Include at least 1 activity placeholder in the \"activities\" array and place it logically in the flow.
+- placeAfterSectionIndex is 0-based and must be within the sections list range.
+- Keep activity types limited to multiple_choice and flashcards.`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.6,
+  });
+  const content = completion.choices[0]?.message?.content;
+  if (!content) throw new Error("No response from OpenAI");
+  const raw = parseJsonFromResponse(content);
+
+  const sectionsRaw = Array.isArray(raw.sections) ? raw.sections : [];
+  const sections: ModuleSection[] = sectionsRaw.map((s: Record<string, unknown>, i: number) => ({
+    id: crypto.randomUUID(),
+    heading: typeof s.heading === "string" ? s.heading : `Section ${i + 1}`,
+    content: typeof s.content === "string" ? s.content : "",
+    scenario: typeof s.scenario === "string" ? s.scenario : undefined,
+    reflectionPrompt: typeof s.reflectionPrompt === "string" ? s.reflectionPrompt : undefined,
+    knowledgeChecks: Array.isArray(s.knowledgeChecks) ? s.knowledgeChecks.map(String) : [],
+    resourceSuggestions: Array.isArray(s.resourceSuggestions) ? s.resourceSuggestions.map(String) : undefined,
+    activityIds: [],
+  }));
+
+  const activitiesRaw = Array.isArray(raw.activities) ? raw.activities : [];
+  const activities: GeneratedModuleDraftActivity[] = activitiesRaw.flatMap((a: Record<string, unknown>) => {
+    const type = String(a.type) as H5PActivityType;
+    if (type !== "multiple_choice" && type !== "flashcards") return [];
+    const idx = typeof a.placeAfterSectionIndex === "number" ? Math.floor(a.placeAfterSectionIndex) : 0;
+    return [
+      {
+        type,
+        title: typeof a.title === "string" ? a.title : undefined,
+        placeAfterSectionIndex: Number.isFinite(idx) ? idx : 0,
+      } satisfies GeneratedModuleDraftActivity,
+    ];
+  });
+
+  return { sections, activities };
 }

@@ -22,6 +22,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ cou
   if (!course) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
   }
+  if (course.status === "ready_for_export") {
+    return NextResponse.json(
+      { error: "Course is approved and locked" },
+      { status: 400 }
+    );
+  }
   try {
     const body = await request.json();
     const type = body.type as H5PActivityType;

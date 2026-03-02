@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getCourseById } from "@/lib/db/store";
 import { CourseNav } from "@/components/CourseNav";
 import { DeleteCourseButton } from "@/components/DeleteCourseButton";
+import { ApproveCourseButton } from "@/components/ApproveCourseButton";
 
 export default async function CoursePage({
   params,
@@ -36,7 +37,13 @@ export default async function CoursePage({
           Follow the workflow: Define branding → Generate blueprint → Approve → Generate modules →
           Add activities, YouTube, images → Preview → Export SCORM 1.2.
         </p>
-        <DeleteCourseButton courseId={courseId} courseTitle={course.title} />
+        <div className="flex flex-wrap items-center gap-4">
+          <ApproveCourseButton
+            courseId={courseId}
+            disabled={course.status === "ready_for_export"}
+          />
+          <DeleteCourseButton courseId={courseId} courseTitle={course.title} />
+        </div>
       </section>
     </main>
   );

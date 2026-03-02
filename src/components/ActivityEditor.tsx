@@ -17,10 +17,12 @@ export function ActivityEditor({
   courseId,
   initialActivity,
   modules,
+  isCourseLocked,
 }: {
   courseId: string;
   initialActivity: Activity;
   modules: { id: string; title: string }[];
+  isCourseLocked: boolean;
 }) {
   const [activity, setActivity] = useState<Activity>(initialActivity);
   const [saving, setSaving] = useState(false);
@@ -111,14 +113,14 @@ export function ActivityEditor({
       <div className="flex flex-wrap gap-2">
         <button
           onClick={save}
-          disabled={saving}
+          disabled={saving || isCourseLocked}
           className="rounded-md bg-primary px-4 py-2 text-onPrimary font-medium hover:brightness-95 disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save"}
         </button>
         <button
           onClick={generate}
-          disabled={generating}
+          disabled={generating || isCourseLocked}
           className="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
         >
           {generating ? "Generating…" : "Generate content"}
@@ -135,6 +137,7 @@ export function ActivityEditor({
           onChange={(e) =>
             setActivity((a) => ({ ...a, moduleId: e.target.value || undefined }))
           }
+          disabled={isCourseLocked}
           className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2"
         >
           <option value="">— None —</option>
@@ -161,6 +164,7 @@ export function ActivityEditor({
               }}
               className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2"
               placeholder="Enter the question"
+              disabled={isCourseLocked}
             />
           </div>
           <div>
@@ -176,6 +180,7 @@ export function ActivityEditor({
                     );
                     setActivity((a) => ({ ...a, h5pJson: { ...a.h5pJson, answers: next } }));
                   }}
+                  disabled={isCourseLocked}
                 />
                 <input
                   type="text"
@@ -187,6 +192,7 @@ export function ActivityEditor({
                   }}
                   className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2"
                   placeholder={`Answer ${i + 1}`}
+                  disabled={isCourseLocked}
                 />
               </div>
             ))}
@@ -196,6 +202,7 @@ export function ActivityEditor({
                 const next = [...mcAnswers, { text: "", correct: false }];
                 setActivity((a) => ({ ...a, h5pJson: { ...a.h5pJson, answers: next } }));
               }}
+              disabled={isCourseLocked}
               className="text-sm text-primary hover:underline"
             >
               + Add answer
@@ -217,6 +224,7 @@ export function ActivityEditor({
                 }}
                 className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2"
                 placeholder="Front"
+                disabled={isCourseLocked}
               />
               <input
                 type="text"
@@ -228,6 +236,7 @@ export function ActivityEditor({
                 }}
                 className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2"
                 placeholder="Back"
+                disabled={isCourseLocked}
               />
             </div>
           ))}
@@ -237,6 +246,7 @@ export function ActivityEditor({
               const next = [...cards, { front: "", back: "" }];
               setActivity((a) => ({ ...a, h5pJson: { ...a.h5pJson, cards: next } }));
             }}
+            disabled={isCourseLocked}
             className="text-sm text-primary hover:underline"
           >
             + Add card

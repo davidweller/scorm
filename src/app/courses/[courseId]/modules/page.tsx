@@ -17,6 +17,7 @@ export default async function ModulesPage({
     getModules(courseId),
   ]);
   const canSeed = !!blueprint?.lockedAt && modules.length === 0;
+  const isCourseLocked = course.status === "ready_for_export";
 
   return (
     <main className="min-h-screen p-8">
@@ -33,6 +34,7 @@ export default async function ModulesPage({
         courseId={courseId}
         canSeed={canSeed}
         initialModules={modules}
+        isCourseLocked={isCourseLocked}
       />
     </main>
   );

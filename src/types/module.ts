@@ -6,6 +6,8 @@ export interface ModuleSection {
   reflectionPrompt?: string;
   knowledgeChecks?: string[];
   resourceSuggestions?: string[];
+  /** Inline activities rendered within this section (in order). */
+  activityIds?: string[];
 }
 
 export interface Module {

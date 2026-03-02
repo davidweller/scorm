@@ -34,6 +34,7 @@ export default async function ActivityDetailPage({
         courseId={courseId}
         initialActivity={activity}
         modules={moduleOptions}
+        isCourseLocked={course.status === "ready_for_export"}
       />
     </main>
   );

@@ -26,6 +26,12 @@ export async function POST(
   if (!course) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
   }
+  if (course.status === "ready_for_export") {
+    return NextResponse.json(
+      { error: "Course is approved and locked" },
+      { status: 400 }
+    );
+  }
   const blueprint = await getBlueprint(courseId);
   if (!blueprint?.lockedAt) {
     return NextResponse.json(
@@ -47,6 +53,7 @@ export async function POST(
       content: "",
       reflectionPrompt: "",
       knowledgeChecks: [],
+      activityIds: [],
     };
     return {
       id: bm.id,

@@ -25,6 +25,11 @@ export default async function ExportPage({
         Download a zip package containing imsmanifest.xml, index.html, and the SCORM API wrapper.
         Upload the zip to your LMS.
       </p>
+      {course.status !== "ready_for_export" && (
+        <p className="mb-6 text-sm text-amber-700 dark:text-amber-300 max-w-xl">
+          This course has not been approved/locked yet. You can export now, but consider approving first to lock the final content.
+        </p>
+      )}
       <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 p-6 max-w-xl">
         <a
           href={downloadUrl}

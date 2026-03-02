@@ -27,6 +27,7 @@ export default async function ModuleDetailPage({
         courseId={courseId}
         moduleId={moduleId}
         initialModule={moduleRecord}
+        isCourseLocked={course.status === "ready_for_export"}
       />
     </main>
   );

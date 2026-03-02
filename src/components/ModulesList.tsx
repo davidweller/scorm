@@ -8,10 +8,12 @@ export function ModulesList({
   courseId,
   canSeed,
   initialModules,
+  isCourseLocked,
 }: {
   courseId: string;
   canSeed: boolean;
   initialModules: Module[];
+  isCourseLocked: boolean;
 }) {
   const [modules, setModules] = useState<Module[]>(initialModules);
   const [seeding, setSeeding] = useState(false);
@@ -50,7 +52,7 @@ export function ModulesList({
             {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
             <button
               onClick={handleSeed}
-              disabled={seeding}
+              disabled={seeding || isCourseLocked}
               className="rounded-md bg-primary px-4 py-2 text-onPrimary font-medium hover:brightness-95 disabled:opacity-50"
             >
               {seeding ? "Creating…" : "Create modules from blueprint"}

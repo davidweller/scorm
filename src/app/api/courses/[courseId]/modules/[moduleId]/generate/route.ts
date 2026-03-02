@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCourseById } from "@/lib/db/store";
-import { getModuleById, updateModule, getBlueprint } from "@/lib/db/course-data";
+import { addActivity, getActivities, getBlueprint, getModuleById, updateModule } from "@/lib/db/course-data";
 import { getOpenAIKey } from "@/lib/db/settings";
-import { generateModuleContentWithAI } from "@/lib/openai/module";
+import { generateModuleDraftWithAI } from "@/lib/openai/module";
 import type { ModuleSection } from "@/types";
 
 function generateMockSection(moduleTitle: string, index: number): ModuleSection {
@@ -14,6 +14,7 @@ function generateMockSection(moduleTitle: string, index: number): ModuleSection 
     reflectionPrompt: `What is one takeaway from this section?`,
     knowledgeChecks: ["Check 1", "Check 2"],
     resourceSuggestions: ["Further reading"],
+    activityIds: [],
   };
 }
 
@@ -25,6 +26,12 @@ export async function POST(
   const course = await getCourseById(courseId);
   if (!course) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
+  }
+  if (course.status === "ready_for_export") {
+    return NextResponse.json(
+      { error: "Course is approved and locked" },
+      { status: 400 }
+    );
   }
   const mod = await getModuleById(courseId, moduleId);
   if (!mod) {
@@ -38,15 +45,29 @@ export async function POST(
   }
   try {
     const apiKey = await getOpenAIKey();
-    let sections: ModuleSection[];
+    const allActivities = await getActivities(courseId);
+    const moduleActivities = allActivities.filter((a) => a.moduleId === mod.id);
+    const hasExistingActivities = moduleActivities.length > 0;
+    const existingActivityIdsByIndex = mod.sections.map((s) => s.activityIds ?? []);
+
+    let sections: ModuleSection[] = [];
+    let draftActivities: { type: "multiple_choice" | "flashcards"; placeAfterSectionIndex: number }[] = [
+      { type: "multiple_choice", placeAfterSectionIndex: 0 },
+    ];
+
     if (apiKey) {
       try {
         const blueprint = await getBlueprint(courseId);
-        sections = await generateModuleContentWithAI(apiKey, {
+        const draft = await generateModuleDraftWithAI(apiKey, {
           courseTopic: course.topic,
           moduleTitle: mod.title,
           courseOverview: blueprint?.overview,
         });
+        sections = draft.sections;
+        draftActivities = draft.activities.map((a) => ({
+          type: a.type,
+          placeAfterSectionIndex: a.placeAfterSectionIndex,
+        }));
       } catch (aiError) {
         console.error("Module content OpenAI error", aiError);
         sections = [
@@ -56,6 +77,7 @@ export async function POST(
             content: `Welcome to ${mod.title}. This module will guide you through the main concepts.`,
             reflectionPrompt: "What do you hope to learn from this module?",
             knowledgeChecks: [],
+            activityIds: [],
           },
           generateMockSection(mod.title, 1),
           generateMockSection(mod.title, 2),
@@ -69,11 +91,33 @@ export async function POST(
           content: `Welcome to ${mod.title}. This module will guide you through the main concepts.`,
           reflectionPrompt: "What do you hope to learn from this module?",
           knowledgeChecks: [],
+          activityIds: [],
         },
         generateMockSection(mod.title, 1),
         generateMockSection(mod.title, 2),
       ];
     }
+
+    // Preserve existing inline placements if the module already has activities.
+    if (hasExistingActivities) {
+      sections = sections.map((s, i) => ({
+        ...s,
+        activityIds: existingActivityIdsByIndex[i] ?? [],
+      }));
+    } else {
+      // Create new activity placeholders and place them inline.
+      const clampedIndex = (i: number) => Math.max(0, Math.min(i, Math.max(0, sections.length - 1)));
+      for (const a of draftActivities) {
+        const activity = await addActivity(courseId, {
+          type: a.type,
+          moduleId: mod.id,
+        });
+        const idx = clampedIndex(a.placeAfterSectionIndex);
+        const current = sections[idx]?.activityIds ?? [];
+        sections[idx] = { ...sections[idx], activityIds: [...current, activity.id] };
+      }
+    }
+
     const updated = await updateModule(courseId, moduleId, { sections });
     return NextResponse.json(updated);
   } catch (e) {

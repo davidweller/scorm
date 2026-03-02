@@ -14,6 +14,7 @@ function generateMockSection(moduleTitle: string, index: number): ModuleSection 
     reflectionPrompt: `What is one takeaway from this section?`,
     knowledgeChecks: ["Check 1", "Check 2"],
     resourceSuggestions: ["Further reading"],
+    activityIds: [],
   };
 }
 
@@ -25,6 +26,12 @@ export async function POST(
   const course = await getCourseById(courseId);
   if (!course) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
+  }
+  if (course.status === "ready_for_export") {
+    return NextResponse.json(
+      { error: "Course is approved and locked" },
+      { status: 400 }
+    );
   }
   const mod = await getModuleById(courseId, moduleId);
   if (!mod) {
@@ -65,7 +72,11 @@ export async function POST(
     } else {
       newSection = generateMockSection(mod.title, sectionIndex);
     }
-    sections[sectionIndex] = { ...newSection, id: sections[sectionIndex].id };
+    sections[sectionIndex] = {
+      ...newSection,
+      id: sections[sectionIndex].id,
+      activityIds: sections[sectionIndex].activityIds ?? [],
+    };
     const updated = await updateModule(courseId, moduleId, { sections });
     return NextResponse.json(updated);
   } catch (e) {

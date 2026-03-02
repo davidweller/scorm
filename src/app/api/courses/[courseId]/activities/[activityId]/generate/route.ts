@@ -35,6 +35,12 @@ export async function POST(
   if (!course) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
   }
+  if (course.status === "ready_for_export") {
+    return NextResponse.json(
+      { error: "Course is approved and locked" },
+      { status: 400 }
+    );
+  }
   const activity = await getActivityById(courseId, activityId);
   if (!activity) {
     return NextResponse.json({ error: "Activity not found" }, { status: 404 });
