@@ -6,6 +6,7 @@ export function CourseNav({ courseId }: { courseId: string }) {
     { href: `${base}/branding`, label: "Branding" },
     { href: `${base}/blueprint`, label: "Blueprint" },
     { href: `${base}/modules`, label: "Modules" },
+     { href: `${base}/course-draft`, label: "Course draft" },
     { href: `${base}/activities`, label: "Activities" },
     { href: `${base}/preview`, label: "Preview" },
     { href: `${base}/export`, label: "Export SCORM" },

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCourseById } from "@/lib/db/store";
-import { getBlueprint, getModules } from "@/lib/db/course-data";
+import { getBlueprint, getModules, getModulesApprovedAt } from "@/lib/db/course-data";
 import { ModulesList } from "@/components/ModulesList";
 
 export default async function ModulesPage({
@@ -12,12 +12,14 @@ export default async function ModulesPage({
   const { courseId } = await params;
   const course = await getCourseById(courseId);
   if (!course) notFound();
-  const [blueprint, modules] = await Promise.all([
+  const [blueprint, modules, modulesApprovedAt] = await Promise.all([
     getBlueprint(courseId),
     getModules(courseId),
+    getModulesApprovedAt(courseId),
   ]);
   const canSeed = !!blueprint?.lockedAt && modules.length === 0;
   const isCourseLocked = course.status === "ready_for_export";
+  const modulesApproved = Boolean(modulesApprovedAt);
 
   return (
     <main className="min-h-screen p-8">
@@ -35,6 +37,7 @@ export default async function ModulesPage({
         canSeed={canSeed}
         initialModules={modules}
         isCourseLocked={isCourseLocked}
+        modulesApproved={modulesApproved}
       />
     </main>
   );

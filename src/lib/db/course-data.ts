@@ -11,6 +11,10 @@ export interface CourseDataRecord {
   blueprint?: Blueprint;
   modules?: Module[];
   activities?: Activity[];
+  /** When the module list (titles/order) has been approved. */
+  modulesApprovedAt?: string;
+  /** Full-course draft text (W1-style) prior to section breakdown. */
+  courseDraft?: string;
 }
 
 async function ensureDataDir() {
@@ -52,6 +56,28 @@ export async function getBlueprint(courseId: string): Promise<Blueprint | null> 
 export async function setBlueprint(courseId: string, blueprint: Blueprint): Promise<void> {
   const data = await readCourseData();
   data[courseId] = { ...data[courseId], blueprint };
+  await writeCourseData(data);
+}
+
+export async function getModulesApprovedAt(courseId: string): Promise<string | null> {
+  const data = await readCourseData();
+  return data[courseId]?.modulesApprovedAt ?? null;
+}
+
+export async function setModulesApprovedAt(courseId: string, iso: string): Promise<void> {
+  const data = await readCourseData();
+  data[courseId] = { ...data[courseId], modulesApprovedAt: iso };
+  await writeCourseData(data);
+}
+
+export async function getCourseDraft(courseId: string): Promise<string | null> {
+  const data = await readCourseData();
+  return data[courseId]?.courseDraft ?? null;
+}
+
+export async function setCourseDraft(courseId: string, draft: string): Promise<void> {
+  const data = await readCourseData();
+  data[courseId] = { ...data[courseId], courseDraft: draft };
   await writeCourseData(data);
 }
 
