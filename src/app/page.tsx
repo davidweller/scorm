@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { CourseList } from "@/components/CourseList";
 
 export default function HomePage() {
   return (
     <main className="min-h-screen p-8">
       <header className="max-w-4xl mx-auto mb-12">
         <h1 className="text-3xl font-bold text-foreground">SCORM Builder</h1>
-        <p className="mt-2 text-secondary text-lg">
+        <p className="mt-2 text-gray-600 dark:text-gray-400 text-lg">
           Turn minimal input (topic + length) into a fully structured,
           interactive, SCORM-ready course — branded and LMS-compatible — in minutes.
         </p>
@@ -21,13 +22,11 @@ export default function HomePage() {
 
         <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 p-6">
           <h2 className="text-lg font-semibold text-foreground mb-2">Your courses</h2>
-          <p className="text-secondary text-sm">
-            No courses yet. Create your first course to get started.
-          </p>
+          <CourseList />
         </div>
 
         <nav className="pt-4">
-          <Link href="/settings" className="text-sm text-secondary hover:text-foreground">
+          <Link href="/settings" className="text-sm text-gray-600 dark:text-gray-400 hover:text-foreground">
             Settings (API keys)
           </Link>
         </nav>
