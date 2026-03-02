@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { Blueprint, IntendedLearningOutcome, BlueprintModule } from "@/types";
+import { getExampleCoursePromptContext } from "./example-course";
 
 export interface BlueprintGenerateInput {
   topic: string;
@@ -27,8 +28,17 @@ export async function generateBlueprintWithAI(
 ): Promise<Blueprint> {
   const openai = new OpenAI({ apiKey });
   const userIlos = input.ilos?.filter(Boolean).join("\n") || "";
+  const exampleContext = getExampleCoursePromptContext();
   const prompt = `You are an instructional designer. Generate a course blueprint as JSON.
 
+Use the following reference course as your structure and style guide. Match its quality of overview, ILO phrasing, module count and title style, activity mix, and tone. Do not copy the reference topic; apply this structure to the user's topic.
+
+Reference course context:
+${exampleContext}
+
+---
+
+User request:
 Course topic: ${input.topic}
 Total length: ${input.length}
 ${input.targetAudience ? `Target audience: ${input.targetAudience}` : ""}

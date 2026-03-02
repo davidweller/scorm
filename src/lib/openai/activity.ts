@@ -13,6 +13,7 @@ export async function generateMultipleChoiceWithAI(
 ): Promise<Record<string, unknown>> {
   const openai = new OpenAI({ apiKey });
   const prompt = `Create one multiple choice question (4 options, one correct) for a course about "${params.topic}"${params.moduleTitle ? `, module "${params.moduleTitle}"` : ""}.
+Match the style of a professional foundation-level course: clear wording, plausible distractors, and alignment to learning outcomes.
 
 Respond with ONLY this JSON (no markdown):
 {"question": "Question text?", "answers": [{"text": "Option A", "correct": true}, {"text": "Option B", "correct": false}, ...]}
@@ -43,6 +44,7 @@ export async function generateFlashcardsWithAI(
   const openai = new OpenAI({ apiKey });
   const count = params.count ?? 3;
   const prompt = `Create ${count} flashcards (term/concept on front, definition or explanation on back) for a course about "${params.topic}"${params.moduleTitle ? `, module "${params.moduleTitle}"` : ""}.
+Match the style of a professional foundation-level course: clear definitions, practical examples where helpful.
 
 Respond with ONLY this JSON (no markdown):
 {"cards": [{"front": "Term or question", "back": "Definition or answer"}, ...]}`;
