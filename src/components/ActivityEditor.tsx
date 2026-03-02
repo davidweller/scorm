@@ -112,7 +112,7 @@ export function ActivityEditor({
         <button
           onClick={save}
           disabled={saving}
-          className="rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-md bg-primary px-4 py-2 text-onPrimary font-medium hover:brightness-95 disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save"}
         </button>
@@ -196,7 +196,7 @@ export function ActivityEditor({
                 const next = [...mcAnswers, { text: "", correct: false }];
                 setActivity((a) => ({ ...a, h5pJson: { ...a.h5pJson, answers: next } }));
               }}
-              className="text-sm text-blue-600 dark:text-blue-400"
+              className="text-sm text-primary hover:underline"
             >
               + Add answer
             </button>
@@ -237,7 +237,7 @@ export function ActivityEditor({
               const next = [...cards, { front: "", back: "" }];
               setActivity((a) => ({ ...a, h5pJson: { ...a.h5pJson, cards: next } }));
             }}
-            className="text-sm text-blue-600 dark:text-blue-400"
+            className="text-sm text-primary hover:underline"
           >
             + Add card
           </button>

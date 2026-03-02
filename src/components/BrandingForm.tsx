@@ -5,6 +5,8 @@ import type { Branding } from "@/types";
 import { DEFAULT_BRANDING } from "@/types";
 
 const FONT_OPTIONS = [
+  "Work Sans, sans-serif",
+  "Ubuntu, sans-serif",
   "system-ui, sans-serif",
   "Georgia, serif",
   "Palatino, serif",
@@ -153,7 +155,7 @@ export function BrandingForm({
         <button
           type="submit"
           disabled={loading}
-          className="rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-md bg-primary px-4 py-2 text-onPrimary font-medium hover:brightness-95 disabled:opacity-50"
         >
           {loading ? "Saving…" : "Save branding"}
         </button>

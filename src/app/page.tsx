@@ -15,7 +15,7 @@ export default function HomePage() {
       <section className="max-w-4xl mx-auto space-y-6">
         <Link
           href="/courses/new"
-          className="block rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/50 px-6 py-4 text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition"
+          className="block rounded-lg border-2 border-primary bg-background px-6 py-4 text-primary font-medium hover:bg-secondary/30 transition"
         >
           Create new course
         </Link>

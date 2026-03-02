@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCourseById } from "@/lib/db/store";
 import { getBlueprint, setBlueprint } from "@/lib/db/course-data";
+import { getOpenAIKey } from "@/lib/db/settings";
+import { generateBlueprintWithAI } from "@/lib/openai/blueprint";
 import type { Blueprint, IntendedLearningOutcome, BlueprintModule } from "@/types";
 
-/** Mock blueprint generation. Replace with OpenAI call when BYOK is wired. */
 function generateMockBlueprint(topic: string, length: string): Blueprint {
   const id = () => crypto.randomUUID();
   const ilos: IntendedLearningOutcome[] = [
@@ -27,7 +28,7 @@ function generateMockBlueprint(topic: string, length: string): Blueprint {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
   const { courseId } = await params;
@@ -43,7 +44,30 @@ export async function POST(
         { status: 400 }
       );
     }
-    const blueprint = generateMockBlueprint(course.topic, course.length);
+    const body = await request.json().catch(() => ({}));
+    const apiKey = await getOpenAIKey();
+    let blueprint: Blueprint;
+    if (apiKey) {
+      try {
+        blueprint = await generateBlueprintWithAI(apiKey, {
+          topic: course.topic,
+          length: course.length,
+          overview: typeof body.overview === "string" ? body.overview : undefined,
+          ilos: Array.isArray(body.ilos) ? body.ilos.filter((x: unknown): x is string => typeof x === "string") : undefined,
+          targetAudience: typeof body.targetAudience === "string" ? body.targetAudience : undefined,
+          tone: typeof body.tone === "string" ? body.tone : undefined,
+          level: typeof body.level === "string" ? body.level : undefined,
+          deliveryMode: typeof body.deliveryMode === "string" ? body.deliveryMode : undefined,
+          assessmentDescription: typeof body.assessmentDescription === "string" ? body.assessmentDescription : undefined,
+          optimiseIlos: Boolean(body.optimiseIlos),
+        });
+      } catch (aiError) {
+        console.error("Blueprint OpenAI error", aiError);
+        blueprint = generateMockBlueprint(course.topic, course.length);
+      }
+    } else {
+      blueprint = generateMockBlueprint(course.topic, course.length);
+    }
     await setBlueprint(courseId, blueprint);
     return NextResponse.json(blueprint);
   } catch (e) {

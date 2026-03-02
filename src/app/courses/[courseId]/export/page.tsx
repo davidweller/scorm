@@ -29,7 +29,7 @@ export default async function ExportPage({
         <a
           href={downloadUrl}
           download
-          className="inline-block rounded-md bg-blue-600 px-6 py-3 text-white font-medium hover:bg-blue-700"
+          className="inline-block rounded-md bg-accent px-6 py-3 text-onPrimary font-medium hover:brightness-95"
         >
           Download SCORM 1.2 package
         </a>

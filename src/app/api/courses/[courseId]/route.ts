@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCourseById, updateCourse } from "@/lib/db/store";
+import { getCourseById, updateCourse, deleteCourse } from "@/lib/db/store";
+import { deleteCourseData } from "@/lib/db/course-data";
 import type { CourseStatus } from "@/types";
 
 export async function GET(
@@ -38,6 +39,28 @@ export async function PATCH(
     console.error("PATCH /api/courses/[courseId]", e);
     return NextResponse.json(
       { error: "Failed to update course" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ courseId: string }> }
+) {
+  const { courseId } = await params;
+  const course = await getCourseById(courseId);
+  if (!course) {
+    return NextResponse.json({ error: "Course not found" }, { status: 404 });
+  }
+  try {
+    await deleteCourseData(courseId);
+    await deleteCourse(courseId);
+    return new NextResponse(null, { status: 204 });
+  } catch (e) {
+    console.error("DELETE /api/courses/[courseId]", e);
+    return NextResponse.json(
+      { error: "Failed to delete course" },
       { status: 500 }
     );
   }

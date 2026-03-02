@@ -141,3 +141,10 @@ export async function deleteActivity(courseId: string, activityId: string): Prom
   await setActivities(courseId, filtered);
   return true;
 }
+
+export async function deleteCourseData(courseId: string): Promise<void> {
+  const data = await readCourseData();
+  if (!(courseId in data)) return;
+  delete data[courseId];
+  await writeCourseData(data);
+}

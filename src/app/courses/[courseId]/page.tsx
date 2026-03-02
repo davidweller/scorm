@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCourseById } from "@/lib/db/store";
 import { CourseNav } from "@/components/CourseNav";
+import { DeleteCourseButton } from "@/components/DeleteCourseButton";
 
 export default async function CoursePage({
   params,
@@ -31,10 +32,11 @@ export default async function CoursePage({
 
       <section className="mt-8 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 p-6 max-w-2xl">
         <h2 className="text-lg font-semibold text-foreground mb-2">Course hub</h2>
-        <p className="text-gray-600 dark:text-gray-400 text-sm">
+        <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
           Follow the workflow: Define branding → Generate blueprint → Approve → Generate modules →
           Add activities, YouTube, images → Preview → Export SCORM 1.2.
         </p>
+        <DeleteCourseButton courseId={courseId} courseTitle={course.title} />
       </section>
     </main>
   );

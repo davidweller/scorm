@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCourseById } from "@/lib/db/store";
-import { getActivityById, updateActivity } from "@/lib/db/course-data";
+import { getActivityById, updateActivity, getModuleById } from "@/lib/db/course-data";
+import { getOpenAIKey } from "@/lib/db/settings";
+import { generateMultipleChoiceWithAI, generateFlashcardsWithAI } from "@/lib/openai/activity";
 
-/** Mock H5P-style content. Replace with OpenAI when BYOK is wired. */
 function generateMultipleChoiceJson(): Record<string, unknown> {
   return {
     question: "What is the main purpose of this module?",
@@ -38,12 +39,30 @@ export async function POST(
   if (!activity) {
     return NextResponse.json({ error: "Activity not found" }, { status: 404 });
   }
-  const h5pJson =
-    activity.type === "multiple_choice"
-      ? generateMultipleChoiceJson()
-      : activity.type === "flashcards"
-        ? generateFlashcardsJson()
-        : {};
+  const apiKey = await getOpenAIKey();
+  let h5pJson: Record<string, unknown>;
+  const moduleTitle = activity.moduleId ? (await getModuleById(courseId, activity.moduleId))?.title : undefined;
+  if (apiKey) {
+    try {
+      if (activity.type === "multiple_choice") {
+        h5pJson = await generateMultipleChoiceWithAI(apiKey, { topic: course.topic, moduleTitle });
+      } else if (activity.type === "flashcards") {
+        h5pJson = await generateFlashcardsWithAI(apiKey, { topic: course.topic, moduleTitle });
+      } else {
+        h5pJson = activity.type === "multiple_choice" ? generateMultipleChoiceJson() : generateFlashcardsJson();
+      }
+    } catch (aiError) {
+      console.error("Activity OpenAI error", aiError);
+      h5pJson = activity.type === "multiple_choice" ? generateMultipleChoiceJson() : generateFlashcardsJson();
+    }
+  } else {
+    h5pJson =
+      activity.type === "multiple_choice"
+        ? generateMultipleChoiceJson()
+        : activity.type === "flashcards"
+          ? generateFlashcardsJson()
+          : {};
+  }
   const updated = await updateActivity(courseId, activityId, { h5pJson });
   return NextResponse.json(updated);
 }

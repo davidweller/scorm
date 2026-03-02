@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCourseById } from "@/lib/db/store";
 import { getModuleById, updateModule, getBlueprint } from "@/lib/db/course-data";
 import { getOpenAIKey } from "@/lib/db/settings";
-import { generateModuleContentWithAI } from "@/lib/openai/module";
+import { generateSingleSectionWithAI } from "@/lib/openai/module";
 import type { ModuleSection } from "@/types";
 
 function generateMockSection(moduleTitle: string, index: number): ModuleSection {
@@ -18,7 +18,7 @@ function generateMockSection(moduleTitle: string, index: number): ModuleSection 
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ courseId: string; moduleId: string }> }
 ) {
   const { courseId, moduleId } = await params;
@@ -37,49 +37,41 @@ export async function POST(
     );
   }
   try {
+    const body = await request.json().catch(() => ({}));
+    const sectionIndex = typeof body.sectionIndex === "number" ? Math.floor(body.sectionIndex) : 0;
+    const sections = [...mod.sections];
+    if (sectionIndex < 0 || sectionIndex >= sections.length) {
+      return NextResponse.json(
+        { error: "Invalid section index" },
+        { status: 400 }
+      );
+    }
     const apiKey = await getOpenAIKey();
-    let sections: ModuleSection[];
+    let newSection: ModuleSection;
     if (apiKey) {
       try {
         const blueprint = await getBlueprint(courseId);
-        sections = await generateModuleContentWithAI(apiKey, {
+        newSection = await generateSingleSectionWithAI(apiKey, {
           courseTopic: course.topic,
           moduleTitle: mod.title,
+          sectionIndex,
+          existingHeadings: sections.map((s) => s.heading),
           courseOverview: blueprint?.overview,
         });
       } catch (aiError) {
-        console.error("Module content OpenAI error", aiError);
-        sections = [
-          {
-            id: crypto.randomUUID(),
-            heading: "Introduction",
-            content: `Welcome to ${mod.title}. This module will guide you through the main concepts.`,
-            reflectionPrompt: "What do you hope to learn from this module?",
-            knowledgeChecks: [],
-          },
-          generateMockSection(mod.title, 1),
-          generateMockSection(mod.title, 2),
-        ];
+        console.error("Section generate OpenAI error", aiError);
+        newSection = generateMockSection(mod.title, sectionIndex);
       }
     } else {
-      sections = [
-        {
-          id: crypto.randomUUID(),
-          heading: "Introduction",
-          content: `Welcome to ${mod.title}. This module will guide you through the main concepts.`,
-          reflectionPrompt: "What do you hope to learn from this module?",
-          knowledgeChecks: [],
-        },
-        generateMockSection(mod.title, 1),
-        generateMockSection(mod.title, 2),
-      ];
+      newSection = generateMockSection(mod.title, sectionIndex);
     }
+    sections[sectionIndex] = { ...newSection, id: sections[sectionIndex].id };
     const updated = await updateModule(courseId, moduleId, { sections });
     return NextResponse.json(updated);
   } catch (e) {
-    console.error("POST .../modules/[moduleId]/generate", e);
+    console.error("POST .../modules/[moduleId]/generate/section", e);
     return NextResponse.json(
-      { error: "Failed to generate module content" },
+      { error: "Failed to generate section" },
       { status: 500 }
     );
   }

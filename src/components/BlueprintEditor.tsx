@@ -18,6 +18,17 @@ export function BlueprintEditor({
   const [locking, setLocking] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [optionalInputs, setOptionalInputs] = useState({
+    overview: "",
+    iloLines: "",
+    targetAudience: "",
+    tone: "",
+    level: "",
+    deliveryMode: "",
+    assessmentDescription: "",
+    optimiseIlos: false,
+  });
+  const [showOptional, setShowOptional] = useState(false);
 
   useEffect(() => {
     setBlueprint(initialBlueprint);
@@ -28,7 +39,24 @@ export function BlueprintEditor({
     setMessage("");
     setGenerating(true);
     try {
-      const res = await fetch(`/api/courses/${courseId}/blueprint/generate`, { method: "POST" });
+      const ilos = optionalInputs.iloLines
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const res = await fetch(`/api/courses/${courseId}/blueprint/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          overview: optionalInputs.overview || undefined,
+          ilos: ilos.length ? ilos : undefined,
+          targetAudience: optionalInputs.targetAudience || undefined,
+          tone: optionalInputs.tone || undefined,
+          level: optionalInputs.level || undefined,
+          deliveryMode: optionalInputs.deliveryMode || undefined,
+          assessmentDescription: optionalInputs.assessmentDescription || undefined,
+          optimiseIlos: optionalInputs.optimiseIlos,
+        }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Failed to generate");
@@ -113,14 +141,107 @@ export function BlueprintEditor({
   return (
     <div className="space-y-6 max-w-3xl">
       {!blueprint || (Array.isArray(blueprint.ilos) && blueprint.ilos.length === 0 && blueprint.modules.length === 0) ? (
-        <div>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Generate a course structure from your course topic and length. You can edit the result before locking.
+        <div className="space-y-4">
+          <p className="text-gray-600 dark:text-gray-400">
+            Generate a course structure from your course topic and length. Add optional inputs below for better AI results.
           </p>
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowOptional((s) => !s)}
+              className="text-sm text-primary hover:underline"
+            >
+              {showOptional ? "Hide" : "Show"} optional inputs (overview, ILOs, audience, tone…)
+            </button>
+            {showOptional && (
+              <div className="mt-3 p-4 rounded-lg border border-gray-200 dark:border-gray-700 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Course overview (optional)</label>
+                  <textarea
+                    value={optionalInputs.overview}
+                    onChange={(e) => setOptionalInputs((o) => ({ ...o, overview: e.target.value }))}
+                    rows={2}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+                    placeholder="Brief course description..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">ILOs – one per line (optional)</label>
+                  <textarea
+                    value={optionalInputs.iloLines}
+                    onChange={(e) => setOptionalInputs((o) => ({ ...o, iloLines: e.target.value }))}
+                    rows={3}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+                    placeholder="By the end learners will..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Target audience</label>
+                    <input
+                      type="text"
+                      value={optionalInputs.targetAudience}
+                      onChange={(e) => setOptionalInputs((o) => ({ ...o, targetAudience: e.target.value }))}
+                      className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+                      placeholder="e.g. Managers"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Tone</label>
+                    <input
+                      type="text"
+                      value={optionalInputs.tone}
+                      onChange={(e) => setOptionalInputs((o) => ({ ...o, tone: e.target.value }))}
+                      className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+                      placeholder="e.g. professional"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Level</label>
+                    <input
+                      type="text"
+                      value={optionalInputs.level}
+                      onChange={(e) => setOptionalInputs((o) => ({ ...o, level: e.target.value }))}
+                      className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+                      placeholder="e.g. intermediate"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Delivery mode</label>
+                    <input
+                      type="text"
+                      value={optionalInputs.deliveryMode}
+                      onChange={(e) => setOptionalInputs((o) => ({ ...o, deliveryMode: e.target.value }))}
+                      className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+                      placeholder="e.g. self-paced"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Assessment description (optional)</label>
+                  <input
+                    type="text"
+                    value={optionalInputs.assessmentDescription}
+                    onChange={(e) => setOptionalInputs((o) => ({ ...o, assessmentDescription: e.target.value }))}
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+                    placeholder="e.g. Quiz at end of each module"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={optionalInputs.optimiseIlos}
+                    onChange={(e) => setOptionalInputs((o) => ({ ...o, optimiseIlos: e.target.checked }))}
+                  />
+                  Optimise ILOs (if provided) – AI may rephrase for clarity
+                </label>
+              </div>
+            )}
+          </div>
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-onPrimary font-medium hover:brightness-95 disabled:opacity-50"
           >
             {generating ? "Generating…" : "Generate blueprint"}
           </button>
@@ -140,7 +261,7 @@ export function BlueprintEditor({
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-md bg-primary px-3 py-2 text-sm text-onPrimary hover:brightness-95 disabled:opacity-50"
                 >
                   {saving ? "Saving…" : "Save changes"}
                 </button>
@@ -154,7 +275,7 @@ export function BlueprintEditor({
               </>
             )}
             {isLocked && (
-              <span className="rounded-md bg-amber-100 dark:bg-amber-900/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+              <span className="rounded-md bg-secondary/40 px-3 py-2 text-sm text-foreground">
                 Blueprint locked
               </span>
             )}
@@ -212,7 +333,7 @@ export function BlueprintEditor({
                           { id: crypto.randomUUID(), text: "" },
                         ])
                       }
-                      className="text-sm text-blue-600 dark:text-blue-400"
+                      className="text-sm text-primary hover:underline"
                     >
                       + Add ILO
                     </button>

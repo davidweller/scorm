@@ -33,3 +33,31 @@ export function getScorm12ApiWrapper(): string {
 })();
 `;
 }
+
+/** Script that initializes SCORM, sets completion, and commits on unload. */
+export function getScormCompletionScript(): string {
+  return `
+(function() {
+  function init() {
+    if (window.API && window.API.LMSInitialize) {
+      window.API.LMSInitialize("");
+    }
+  }
+  function setComplete() {
+    if (window.API && window.API.LMSSetValue) {
+      window.API.LMSSetValue("cmi.core.lesson_status", "completed");
+      if (window.API.LMSCommit) window.API.LMSCommit("");
+    }
+  }
+  function finish() {
+    if (window.API && window.API.LMSFinish) window.API.LMSFinish("");
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+  window.addEventListener("beforeunload", function() { setComplete(); finish(); });
+})();
+`;
+}

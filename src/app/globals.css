@@ -3,11 +3,22 @@
 @tailwind utilities;
 
 :root {
-  --background: #fafafa;
-  --foreground: #171717;
-  --color-primary: #2563eb;
-  --color-secondary: #64748b;
-  --color-accent: #0ea5e9;
+  --background: #f8f8f8;
+  --foreground: #1b0101;
+  --color-primary: #015887;
+  --color-secondary: #86bfe2;
+  --color-accent: #ff7700;
+  --color-on-primary: #f8f8f8; /* Text on primary/accent buttons for readability */
+  --font-heading: "Work Sans", sans-serif;
+  --font-body: "Ubuntu", sans-serif;
+}
+
+/* Ensure text on blue (primary) and accent buttons is always #f8f8f8 */
+button.bg-primary,
+button.bg-accent,
+a.bg-primary,
+a.bg-accent {
+  color: #f8f8f8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,4 +31,9 @@
 body {
   color: var(--foreground);
   background: var(--background);
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
 }

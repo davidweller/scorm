@@ -51,7 +51,7 @@ export function ModulesList({
             <button
               onClick={handleSeed}
               disabled={seeding}
-              className="rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md bg-primary px-4 py-2 text-onPrimary font-medium hover:brightness-95 disabled:opacity-50"
             >
               {seeding ? "Creating…" : "Create modules from blueprint"}
             </button>
@@ -79,7 +79,7 @@ export function ModulesList({
               {mod.youtubeUrls.length > 0 && ` · ${mod.youtubeUrls.length} video(s)`}
             </span>
             {mod.lockedAt && (
-              <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200">
+              <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-secondary/40 text-foreground">
                 Locked
               </span>
             )}

@@ -49,7 +49,7 @@ export function ActivitiesList({
       <div className="flex flex-wrap gap-2 items-center">
         <button
           onClick={() => setShowAdd((s) => !s)}
-          className="rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700"
+          className="rounded-md bg-primary px-4 py-2 text-onPrimary font-medium hover:brightness-95"
         >
           Add activity
         </button>
@@ -83,7 +83,7 @@ export function ActivitiesList({
             <button
               onClick={handleAdd}
               disabled={adding}
-              className="rounded-md bg-blue-600 px-3 py-2 text-white text-sm hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md bg-primary px-3 py-2 text-onPrimary text-sm hover:brightness-95 disabled:opacity-50"
             >
               {adding ? "Creating…" : "Create"}
             </button>

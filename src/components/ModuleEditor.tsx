@@ -15,12 +15,14 @@ export function ModuleEditor({
   const [module, setModule] = useState<Module>(initialModule);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [regeneratingSectionIndex, setRegeneratingSectionIndex] = useState<number | null>(null);
   const [generatingImage, setGeneratingImage] = useState(false);
   const [locking, setLocking] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [newYoutubeUrl, setNewYoutubeUrl] = useState("");
   const [imagePreset, setImagePreset] = useState("professional");
+  const [customImagePrompt, setCustomImagePrompt] = useState("");
 
   useEffect(() => {
     setModule(initialModule);
@@ -74,6 +76,29 @@ export function ModuleEditor({
       setError("Something went wrong");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function regenerateSection(index: number) {
+    setError("");
+    setRegeneratingSectionIndex(index);
+    try {
+      const res = await fetch(`/api/courses/${courseId}/modules/${moduleId}/generate/section`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionIndex: index }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to regenerate section");
+        return;
+      }
+      setModule(data);
+      setMessage(`Section ${index + 1} regenerated. Save to keep.`);
+    } catch {
+      setError("Something went wrong");
+    } finally {
+      setRegeneratingSectionIndex(null);
     }
   }
 
@@ -151,7 +176,10 @@ export function ModuleEditor({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stylePreset: imagePreset }),
+          body: JSON.stringify({
+            stylePreset: imagePreset,
+            ...(customImagePrompt.trim() && { customPrompt: customImagePrompt.trim() }),
+          }),
         }
       );
       const data = await res.json();
@@ -176,7 +204,7 @@ export function ModuleEditor({
             <button
               onClick={save}
               disabled={saving}
-              className="rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md bg-primary px-4 py-2 text-onPrimary font-medium hover:brightness-95 disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save"}
             </button>
@@ -190,14 +218,14 @@ export function ModuleEditor({
             <button
               onClick={lockModule}
               disabled={locking}
-              className="rounded-md bg-amber-600 px-4 py-2 text-white font-medium hover:bg-amber-700 disabled:opacity-50"
+              className="rounded-md bg-accent px-4 py-2 text-onPrimary font-medium hover:brightness-95 disabled:opacity-50"
             >
               {locking ? "Locking…" : "Lock module"}
             </button>
           </>
         )}
         {isLocked && (
-          <span className="rounded-md bg-amber-100 dark:bg-amber-900/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          <span className="rounded-md bg-secondary/40 px-3 py-2 text-sm text-foreground">
             Module locked
           </span>
         )}
@@ -219,25 +247,34 @@ export function ModuleEditor({
           </div>
         ) : null}
         {!isLocked && (
-          <div className="flex gap-2 items-center mb-4">
-            <select
-              value={imagePreset}
-              onChange={(e) => setImagePreset(e.target.value)}
-              className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
-            >
-              <option value="professional">Professional</option>
-              <option value="illustration">Illustration</option>
-              <option value="photo">Photo</option>
-              <option value="minimal">Minimal</option>
-            </select>
-            <button
-              type="button"
-              onClick={generateHeroImage}
-              disabled={generatingImage}
-              className="rounded-md border border-purple-500 text-purple-600 dark:text-purple-400 px-3 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-50"
-            >
-              {generatingImage ? "Generating…" : "Generate hero image"}
-            </button>
+          <div className="space-y-2 mb-4">
+            <div className="flex flex-wrap gap-2 items-center">
+              <select
+                value={imagePreset}
+                onChange={(e) => setImagePreset(e.target.value)}
+                className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+              >
+                <option value="professional">Professional</option>
+                <option value="illustration">Illustration</option>
+                <option value="photo">Photo</option>
+                <option value="minimal">Minimal</option>
+              </select>
+              <button
+                type="button"
+                onClick={generateHeroImage}
+                disabled={generatingImage}
+                className="rounded-md border border-purple-500 text-purple-600 dark:text-purple-400 px-3 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-50"
+              >
+                {generatingImage ? "Generating…" : "Generate hero image"}
+              </button>
+            </div>
+            <input
+              type="text"
+              value={customImagePrompt}
+              onChange={(e) => setCustomImagePrompt(e.target.value)}
+              placeholder="Or custom prompt (overrides style preset when set)"
+              className="w-full max-w-md rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+            />
           </div>
         )}
       </div>
@@ -258,7 +295,7 @@ export function ModuleEditor({
         <ul className="space-y-2 mb-2">
           {module.youtubeUrls.map((url, i) => (
             <li key={i} className="flex gap-2 items-center">
-              <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 text-sm truncate flex-1">
+              <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary text-sm truncate flex-1 hover:underline">
                 {url}
               </a>
               {!isLocked && (
@@ -290,12 +327,22 @@ export function ModuleEditor({
         <div className="space-y-6">
           {module.sections.map((section, i) => (
             <div key={section.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center flex-wrap gap-2">
                 <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Section {i + 1}</span>
                 {!isLocked && (
-                  <button type="button" onClick={() => removeSection(i)} className="text-red-600 dark:text-red-400 text-sm">
-                    Remove
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => regenerateSection(i)}
+                      disabled={regeneratingSectionIndex !== null}
+                      className="text-primary text-sm hover:underline disabled:opacity-50"
+                    >
+                      {regeneratingSectionIndex === i ? "Regenerating…" : "Regenerate"}
+                    </button>
+                    <button type="button" onClick={() => removeSection(i)} className="text-red-600 dark:text-red-400 text-sm">
+                      Remove
+                    </button>
+                  </div>
                 )}
               </div>
               <input
@@ -330,6 +377,24 @@ export function ModuleEditor({
                 placeholder="Reflection prompt"
                 className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm disabled:opacity-70"
               />
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Further reading (one per line)</label>
+                <textarea
+                  value={(section.resourceSuggestions ?? []).join("\n")}
+                  onChange={(e) =>
+                    updateSection(i, {
+                      resourceSuggestions: e.target.value
+                        .split("\n")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  disabled={isLocked}
+                  placeholder="One per line (optional)"
+                  rows={2}
+                  className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm disabled:opacity-70"
+                />
+              </div>
             </div>
           ))}
           {!isLocked && (

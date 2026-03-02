@@ -33,6 +33,7 @@ export async function PATCH(
       secondaryColor: body.secondaryColor ?? current.secondaryColor,
       accentColor: body.accentColor ?? current.accentColor,
       backgroundColor: body.backgroundColor ?? current.backgroundColor,
+      textColor: body.textColor !== undefined ? body.textColor : current.textColor,
       headingFont: body.headingFont ?? current.headingFont,
       bodyFont: body.bodyFont ?? current.bodyFont,
       logoUrl: body.logoUrl !== undefined ? body.logoUrl : current.logoUrl,

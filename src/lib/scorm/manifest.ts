@@ -27,6 +27,7 @@ export function buildImsManifest(courseId: string, courseTitle: string): string 
     <resource identifier="resource_1" type="webcontent" adlcp:scormType="sco" href="index.html">
       <file href="index.html" />
       <file href="scorm-api-wrapper.js" />
+      <file href="scorm-completion.js" />
     </resource>
   </resources>
 </manifest>`;

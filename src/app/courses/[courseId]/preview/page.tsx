@@ -51,7 +51,7 @@ export default function PreviewPage() {
             onClick={() => setViewport(v)}
             className={`rounded-md px-4 py-2 text-sm font-medium capitalize ${
               viewport === v
-                ? "bg-blue-600 text-white"
+                ? "bg-primary text-onPrimary"
                 : "border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
             }`}
           >
