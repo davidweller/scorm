@@ -27,11 +27,15 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Without `ENCRYPTION_KEY` set, a default dev key is used; do not rely on it in production.
 
+## Example course (generation style)
+
+Blueprint and module generation are guided by a reference course (**W1. AI Foundations & Responsible Use**). New courses follow its structure (overview, ILOs, module/section pattern, tone). The extracted text lives in `docs/example-course-w1-ai-foundations.md`; prompts use the summary and excerpts in `src/lib/openai/example-course.ts`. To re-extract after editing the Word source, put the `.docx` in the project root and run `npm run extract-example-course`. See [docs/README.md](./docs/README.md) for details.
+
 ## Project structure
 
 - `src/app/` – App Router pages (dashboard, courses, settings)
 - `src/components/` – UI and feature components
-- `src/lib/` – OpenAI prompts, SCORM packaging, file store, crypto
+- `src/lib/` – OpenAI prompts, SCORM packaging, file store, crypto, example-course asset
 - `src/types/` – TypeScript types (course, blueprint, module, branding, activity)
 
 ## LMS testing
