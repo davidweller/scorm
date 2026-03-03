@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { getCourseForExport } from "@/lib/course-export";
 import { buildScorm12Zip } from "@/lib/scorm/build-package";
 
 export async function POST(
@@ -21,28 +21,7 @@ export async function POST(
       lmsSettings?: unknown;
     };
 
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
-      include: {
-        modules: {
-          orderBy: { order: "asc" },
-          include: {
-            lessons: {
-              orderBy: { order: "asc" },
-              include: {
-                pages: {
-                  orderBy: { order: "asc" },
-                  include: {
-                    contentBlocks: { orderBy: { order: "asc" } },
-                    interactionBlocks: { orderBy: { order: "asc" } },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
+    const course = await getCourseForExport(courseId);
     if (!course) return NextResponse.json({ error: "Course not found" }, { status: 404 });
 
     const effectiveVersion = version === "2004" ? "2004" : "1.2";

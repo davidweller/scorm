@@ -1,10 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
-function getBaseUrl() {
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-}
+import { getBaseUrl } from "@/lib/base-url";
 
 async function getCourse(courseId: string) {
   const res = await fetch(`${getBaseUrl()}/api/courses/${courseId}`, { cache: "no-store" });
@@ -46,6 +42,12 @@ export default async function CoursePage({
           className="rounded border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
         >
           Generate content
+        </Link>
+        <Link
+          href={`/courses/${courseId}/preview`}
+          className="rounded border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+        >
+          Preview
         </Link>
         <Link
           href={`/courses/${courseId}/review`}
