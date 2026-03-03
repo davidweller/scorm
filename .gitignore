@@ -6,13 +6,9 @@ node_modules
 # testing
 coverage
 
-# next.js
-.next/
-out/
-
-# production
-build
-dist
+# next
+.next
+out
 
 # misc
 .DS_Store
@@ -27,15 +23,12 @@ yarn-error.log*
 .env
 .env*.local
 
-# local data
-.data
+# vercel
+.vercel
+
+# prisma
+prisma/migrations/**/migration_lock.toml
 
 # ide
 .idea
 .vscode
-
-# Word temp
-~$*
-
-# turbo
-.turbo

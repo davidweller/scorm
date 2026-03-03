@@ -1,0 +1,75 @@
+// SCORM Course Builder - Prisma schema
+// Compatible with Neon / Vercel Postgres
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Course {
+  id               String   @id @default(cuid())
+  title            String
+  overview         String?
+  audience         String?  // e.g. "undergraduate", "corporate L&D"
+  duration         String?  // e.g. "4 weeks", "2 hours"
+  tone             String?  // e.g. "formal", "conversational"
+  complianceLevel  String?  // e.g. "standard", "strict"
+  brandConfig      Json?    // { primary, secondary, accent, background, logoUrl, font }
+  settings         Json?    // e.g. { apiKeys: { openai?: string } } for BYO keys
+  ilos             Json?    // string[] learning outcomes
+  assessmentPlan   Json?    // string or { summary, placements } for blueprint
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  modules         Module[]
+}
+
+model Module {
+  id        String   @id @default(cuid())
+  courseId  String
+  title     String
+  order     Int      @default(0)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons   Lesson[]
+}
+
+model Lesson {
+  id       String @id @default(cuid())
+  moduleId String
+  title    String
+  order    Int    @default(0)
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  pages    Page[]
+}
+
+model Page {
+  id          String   @id @default(cuid())
+  lessonId    String
+  title       String
+  order       Int      @default(0)
+  completionRules Json? // e.g. { type: "all_blocks_viewed" }
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  contentBlocks    ContentBlock[]
+  interactionBlocks InteractionBlock[]
+}
+
+model ContentBlock {
+  id      String   @id @default(cuid())
+  pageId  String
+  type    String   // text, heading, image, video_embed
+  content Json     // type-specific content
+  order   Int      @default(0)
+  page    Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+}
+
+model InteractionBlock {
+  id     String   @id @default(cuid())
+  pageId String
+  type   String   // multiple_choice, true_false, reflection
+  config Json     // question, options, correctIndex, etc.
+  order  Int      @default(0)
+  page   Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+}

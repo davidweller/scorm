@@ -1,37 +1,74 @@
 import { NextResponse } from "next/server";
-import { getAllCourses, createCourse } from "@/lib/db/store";
-import type { CreateCourseInput } from "@/types";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+
+function dbErrorMessage(e: unknown): string {
+  const msg = e instanceof Error ? e.message : (e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "");
+  if (e && typeof e === "object" && "code" in e) {
+    const code = (e as { code?: string }).code;
+    if (code === "P1001" || code === "P1002") return "Database unreachable. Set DATABASE_URL in .env and ensure the database is running.";
+    if (code === "P2021") return "Database tables missing. Run: npx prisma db push";
+    if (code === "P1003") return "Database not found. Check DATABASE_URL.";
+  }
+  // Surface the real error so user can fix it (e.g. "relation \"Course\" does not exist")
+  if (msg && process.env.NODE_ENV !== "production") return msg;
+  if (msg && /relation.*does not exist|table.*doesn't exist/i.test(msg)) return "Database tables missing. Run: npx prisma db push";
+  return msg || "Failed to create course. Run: npx prisma db push";
+}
 
 export async function GET() {
   try {
-    const courses = await getAllCourses();
+    const courses = await prisma.course.findMany({
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, title: true, overview: true, updatedAt: true },
+    });
     return NextResponse.json(courses);
   } catch (e) {
-    console.error("GET /api/courses", e);
-    return NextResponse.json(
-      { error: "Failed to list courses" },
-      { status: 500 }
-    );
+    console.error(e);
+    return NextResponse.json({ error: dbErrorMessage(e) }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as CreateCourseInput;
-    const { title, topic, length } = body;
-    if (!title?.trim() || !topic?.trim() || !length?.trim()) {
-      return NextResponse.json(
-        { error: "title, topic, and length are required" },
-        { status: 400 }
-      );
+    const body = await request.json();
+    const {
+      title,
+      overview,
+      audience,
+      duration,
+      tone,
+      complianceLevel,
+      brandConfig,
+      settings,
+    } = body as {
+      title: string;
+      overview?: string;
+      audience?: string;
+      duration?: string;
+      tone?: string;
+      complianceLevel?: string;
+      brandConfig?: unknown;
+      settings?: unknown;
+    };
+    if (!title || typeof title !== "string") {
+      return NextResponse.json({ error: "title is required" }, { status: 400 });
     }
-    const course = await createCourse({ title: title.trim(), topic: topic.trim(), length: length.trim() });
+    const course = await prisma.course.create({
+      data: {
+        title: title.trim(),
+        overview: overview?.trim() ?? null,
+        audience: audience?.trim() ?? null,
+        duration: duration?.trim() ?? null,
+        tone: tone?.trim() ?? null,
+        complianceLevel: complianceLevel?.trim() ?? null,
+        brandConfig: brandConfig != null ? (brandConfig as Prisma.InputJsonValue) : Prisma.JsonNull,
+        settings: settings != null ? (settings as Prisma.InputJsonValue) : Prisma.JsonNull,
+      },
+    });
     return NextResponse.json(course);
   } catch (e) {
-    console.error("POST /api/courses", e);
-    return NextResponse.json(
-      { error: "Failed to create course" },
-      { status: 500 }
-    );
+    console.error(e);
+    return NextResponse.json({ error: dbErrorMessage(e) }, { status: 500 });
   }
 }

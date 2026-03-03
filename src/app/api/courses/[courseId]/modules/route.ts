@@ -1,69 +1,31 @@
 import { NextResponse } from "next/server";
-import { getCourseById } from "@/lib/db/store";
-import { getBlueprint, getModules, setModules } from "@/lib/db/course-data";
-import type { Module, ModuleSection } from "@/types";
+import { prisma } from "@/lib/db";
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ courseId: string }> }
-) {
-  const { courseId } = await params;
-  const course = await getCourseById(courseId);
-  if (!course) {
-    return NextResponse.json({ error: "Course not found" }, { status: 404 });
-  }
-  const modules = await getModules(courseId);
-  return NextResponse.json(modules);
-}
-
-/** Seed modules from locked blueprint (one Module per BlueprintModule). */
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
   const { courseId } = await params;
-  const course = await getCourseById(courseId);
-  if (!course) {
-    return NextResponse.json({ error: "Course not found" }, { status: 404 });
+  try {
+    const body = await request.json();
+    const { title, order } = body as { title?: string; order?: number };
+    if (!title || typeof title !== "string") {
+      return NextResponse.json({ error: "title is required" }, { status: 400 });
+    }
+    const count = await prisma.module.count({ where: { courseId } });
+    const module_ = await prisma.module.create({
+      data: {
+        courseId,
+        title: title.trim(),
+        order: typeof order === "number" ? order : count,
+      },
+    });
+    return NextResponse.json(module_);
+  } catch (e) {
+    if (e && typeof e === "object" && "code" in e && e.code === "P2003") {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
+    console.error(e);
+    return NextResponse.json({ error: "Failed to create module" }, { status: 500 });
   }
-  if (course.status === "ready_for_export") {
-    return NextResponse.json(
-      { error: "Course is approved and locked" },
-      { status: 400 }
-    );
-  }
-  const blueprint = await getBlueprint(courseId);
-  if (!blueprint?.lockedAt) {
-    return NextResponse.json(
-      { error: "Blueprint must be locked before creating modules" },
-      { status: 400 }
-    );
-  }
-  const existing = await getModules(courseId);
-  if (existing.length > 0) {
-    return NextResponse.json(
-      { error: "Modules already exist for this course" },
-      { status: 400 }
-    );
-  }
-  const modules: Module[] = blueprint.modules.map((bm, i) => {
-    const introSection: ModuleSection = {
-      id: crypto.randomUUID(),
-      heading: "Introduction",
-      content: "",
-      reflectionPrompt: "",
-      knowledgeChecks: [],
-      activityIds: [],
-    };
-    return {
-      id: bm.id,
-      courseId,
-      order: i + 1,
-      title: bm.title,
-      sections: [introSection],
-      youtubeUrls: [],
-    };
-  });
-  await setModules(courseId, modules);
-  return NextResponse.json(modules);
 }

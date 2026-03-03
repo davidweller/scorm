@@ -1,36 +1,18 @@
 import Link from "next/link";
-import { CourseList } from "@/components/CourseList";
 
-export default function HomePage() {
+export default function Home() {
   return (
     <main className="min-h-screen p-8">
-      <header className="max-w-4xl mx-auto mb-12">
-        <h1 className="text-3xl font-bold text-foreground">SCORM Builder</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400 text-lg">
-          Turn minimal input (topic + length) into a fully structured,
-          interactive, SCORM-ready course — branded and LMS-compatible — in minutes.
-        </p>
-      </header>
-
-      <section className="max-w-4xl mx-auto space-y-6">
-        <Link
-          href="/courses/new"
-          className="block rounded-lg border-2 border-primary bg-background px-6 py-4 text-primary font-medium hover:bg-secondary/30 transition"
-        >
-          Create new course
-        </Link>
-
-        <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-2">Your courses</h2>
-          <CourseList />
-        </div>
-
-        <nav className="pt-4">
-          <Link href="/settings" className="text-sm text-gray-600 dark:text-gray-400 hover:text-foreground">
-            Settings (API keys)
-          </Link>
-        </nav>
-      </section>
+      <h1 className="text-2xl font-bold">SCORM Course Builder</h1>
+      <p className="mt-2 text-gray-600">
+        Create structured courses and export to SCORM 1.2.
+      </p>
+      <Link
+        href="/courses"
+        className="mt-4 inline-block rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+      >
+        View courses
+      </Link>
     </main>
   );
 }

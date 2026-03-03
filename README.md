@@ -1,51 +1,61 @@
-# SCORM Builder
+# SCORM Course Builder
 
-A web-based application that enables users to define a course blueprint, generate full modules section-by-section, create H5P-style activities (multiple choice, flashcards), insert YouTube videos, generate branded images with OpenAI, and export as SCORM 1.2 for LMS upload. Uses Bring Your Own API Keys (OpenAI).
+B2B SaaS for AI-assisted SCORM course authoring and export. See [SCORM_Course_Builder_SaaS_PRD.md](./SCORM_Course_Builder_SaaS_PRD.md) for product scope.
 
-## Tech stack
+## Stack
 
-- **Next.js 14** (App Router) + **React 18** + **TypeScript**
-- **Tailwind CSS** (dynamic theming via CSS variables)
-- **OpenAI** (GPT-4o-mini for blueprint/module/activity generation; DALL·E 2 for images)
-- **JSZip** (SCORM package)
-- File-based storage (`.data/`) for courses, branding, blueprint, modules, activities, settings, uploads
+- **App:** Next.js 14 (App Router) + TypeScript + Tailwind
+- **DB:** PostgreSQL (Neon / Vercel Postgres) with Prisma
+- **Storage:** Vercel Blob (optional; for uploads and later export zip)
 
-## Getting started
+## Setup
 
-```bash
-npm install
-npm run dev
-```
+1. **Install dependencies**
 
-Open [http://localhost:3000](http://localhost:3000).
+   ```bash
+   npm install
+   ```
 
-### Environment variables
+2. **Environment**
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ENCRYPTION_KEY` | No (dev default) | Secret used to encrypt stored OpenAI API keys. Set a strong value in production (e.g. 32+ character random string). |
+   Copy `.env.example` to `.env` and set:
 
-Without `ENCRYPTION_KEY` set, a default dev key is used; do not rely on it in production.
+   - `DATABASE_URL` — PostgreSQL connection string (Neon or Vercel Postgres).
+   - `BLOB_READ_WRITE_TOKEN` — Optional; required for file uploads and export zip (Vercel Blob).
 
-## Example course (generation style)
+3. **Database**
 
-Blueprint and module generation are guided by a reference course (**W1. AI Foundations & Responsible Use**). New courses follow its structure (overview, ILOs, module/section pattern, tone). The extracted text lives in `docs/example-course-w1-ai-foundations.md`; prompts use the summary and excerpts in `src/lib/openai/example-course.ts`. To re-extract after editing the Word source, put the `.docx` in the project root and run `npm run extract-example-course`. See [docs/README.md](./docs/README.md) for details.
+   ```bash
+   npx prisma db push
+   # Optional: seed a sample course
+   npm run db:seed
+   ```
 
-## Project structure
+4. **Run**
 
-- `src/app/` – App Router pages (dashboard, courses, settings)
-- `src/components/` – UI and feature components
-- `src/lib/` – OpenAI prompts, SCORM packaging, file store, crypto, example-course asset
-- `src/types/` – TypeScript types (course, blueprint, module, branding, activity)
+   ```bash
+   npm run dev
+   ```
 
-## LMS testing
+   Open [http://localhost:3000](http://localhost:3000). Use **Courses** to list/create courses; click a course then **Edit course** to open the course builder (sidebar tree + block-based page editor).
 
-Export produces a SCORM 1.2 zip (imsmanifest.xml, index.html, API wrapper, completion script). Test the zip in your target LMS and document results. See [LMS_TESTING.md](./LMS_TESTING.md) for a testing checklist.
+## API (Phase 1)
 
-## Product requirements
+- `GET/POST /api/courses` — List, create courses.
+- `GET/PATCH/DELETE /api/courses/[courseId]` — Course CRUD; GET returns full tree (modules → lessons → pages → content blocks, interaction blocks).
+- Nested create/update/delete:
+  - `POST .../modules`, `PATCH/DELETE .../modules/[moduleId]`
+  - `POST .../lessons`, `PATCH/DELETE .../lessons/[lessonId]`
+  - `POST .../pages`, `PATCH/DELETE .../pages/[pageId]`
+  - `POST .../pages/[pageId]/content-blocks`, `PATCH/DELETE .../content-blocks/[blockId]`
+  - `POST .../pages/[pageId]/interaction-blocks`, `PATCH/DELETE .../interaction-blocks/[blockId]`
+- `POST /api/uploads` — FormData with `file`; returns `{ url }`. Requires `BLOB_READ_WRITE_TOKEN`.
 
-See [SCORM_PRD.md](./SCORM_PRD.md) for full product requirements and workflow.
+## Course builder (Phase 2)
 
-## License
+- **Edit course** (`/courses/[id]/edit`): Sidebar shows course structure (modules → lessons → pages). Add/rename/delete modules, lessons, and pages. Click a page to edit.
+- **Page editor**: Edit page title; add and edit **content blocks** (text, heading, image, video embed) and **interaction blocks** (multiple choice, true/false, reflection). Changes save on blur.
 
-Private.
+## MVP scope
+
+Per PRD Section 13: structured courses, three interaction types (multiple choice, true/false, reflection), valid SCORM 1.2 export, completion/score tracking, branding, SCORM Cloud validation.

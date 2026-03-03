@@ -1,80 +1,59 @@
 import { NextResponse } from "next/server";
-import { getCourseById } from "@/lib/db/store";
-import { getBlueprint, setBlueprint } from "@/lib/db/course-data";
-import { getOpenAIKey } from "@/lib/db/settings";
-import { generateBlueprintWithAI } from "@/lib/openai/blueprint";
-import type { Blueprint, IntendedLearningOutcome, BlueprintModule } from "@/types";
-
-function generateMockBlueprint(topic: string, length: string): Blueprint {
-  const id = () => crypto.randomUUID();
-  const ilos: IntendedLearningOutcome[] = [
-    { id: id(), text: `Understand key concepts in ${topic}` },
-    { id: id(), text: `Apply principles to practical scenarios` },
-    { id: id(), text: `Evaluate and reflect on learning` },
-  ];
-  const modules: BlueprintModule[] = [
-    { id: id(), title: "Introduction", summary: "Overview and objectives", timeMinutes: 15, activityTypes: ["reflection"], iloIds: [ilos[0].id] },
-    { id: id(), title: "Core concepts", summary: "Main content", timeMinutes: 30, activityTypes: ["knowledge check", "scenario"], iloIds: [ilos[0].id, ilos[1].id] },
-    { id: id(), title: "Application", summary: "Practice and examples", timeMinutes: 25, activityTypes: ["knowledge check", "reflection"], iloIds: [ilos[1].id] },
-    { id: id(), title: "Summary and next steps", summary: "Recap and resources", timeMinutes: 10, activityTypes: ["reflection"], iloIds: [ilos[2].id] },
-  ];
-  return {
-    overview: `This course covers ${topic}. Total length: ${length}. You will work through ${modules.length} modules.`,
-    ilos,
-    modules,
-    tone: "professional",
-    level: "intermediate",
-  };
-}
+import { prisma } from "@/lib/db";
+import {
+  getOpenAIClient,
+  generateBlueprintSection,
+  type BlueprintSection,
+  type BlueprintData,
+} from "@/lib/ai";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ courseId: string }> }
 ) {
   const { courseId } = await params;
-  const course = await getCourseById(courseId);
-  if (!course) {
-    return NextResponse.json({ error: "Course not found" }, { status: 404 });
-  }
   try {
-    const existing = await getBlueprint(courseId);
-    if (existing?.lockedAt) {
+    const course = await prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) return NextResponse.json({ error: "Course not found" }, { status: 404 });
+
+    const body = await request.json().catch(() => ({}));
+    const { section, currentBlueprint } = body as {
+      section: BlueprintSection;
+      currentBlueprint?: BlueprintData;
+    };
+    if (!section || typeof section !== "string") {
+      return NextResponse.json({ error: "section is required" }, { status: 400 });
+    }
+
+    const settings = course.settings as { apiKeys?: { openai?: string } } | null;
+    const apiKey = settings?.apiKeys?.openai ?? null;
+    const client = getOpenAIClient(apiKey);
+    if (!client) {
       return NextResponse.json(
-        { error: "Blueprint is locked" },
+        { error: "No OpenAI API key. Add OPENAI_API_KEY in .env or use Bring your own key in course settings." },
         { status: 400 }
       );
     }
-    const body = await request.json().catch(() => ({}));
-    const apiKey = await getOpenAIKey();
-    let blueprint: Blueprint;
-    if (apiKey) {
-      try {
-        blueprint = await generateBlueprintWithAI(apiKey, {
-          topic: course.topic,
-          length: course.length,
-          overview: typeof body.overview === "string" ? body.overview : undefined,
-          ilos: Array.isArray(body.ilos) ? body.ilos.filter((x: unknown): x is string => typeof x === "string") : undefined,
-          targetAudience: typeof body.targetAudience === "string" ? body.targetAudience : undefined,
-          tone: typeof body.tone === "string" ? body.tone : undefined,
-          level: typeof body.level === "string" ? body.level : undefined,
-          deliveryMode: typeof body.deliveryMode === "string" ? body.deliveryMode : undefined,
-          assessmentDescription: typeof body.assessmentDescription === "string" ? body.assessmentDescription : undefined,
-          optimiseIlos: Boolean(body.optimiseIlos),
-        });
-      } catch (aiError) {
-        console.error("Blueprint OpenAI error", aiError);
-        blueprint = generateMockBlueprint(course.topic, course.length);
-      }
-    } else {
-      blueprint = generateMockBlueprint(course.topic, course.length);
-    }
-    await setBlueprint(courseId, blueprint);
-    return NextResponse.json(blueprint);
-  } catch (e) {
-    console.error("POST /api/courses/[courseId]/blueprint/generate", e);
-    return NextResponse.json(
-      { error: "Failed to generate blueprint" },
-      { status: 500 }
+
+    const context = {
+      title: course.title,
+      overview: course.overview,
+      audience: course.audience,
+      duration: course.duration,
+      tone: course.tone,
+      complianceLevel: course.complianceLevel,
+    };
+
+    const result = await generateBlueprintSection(
+      client,
+      context,
+      section,
+      currentBlueprint
     );
+    return NextResponse.json(result);
+  } catch (e) {
+    console.error(e);
+    const message = e instanceof Error ? e.message : "Blueprint generation failed";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

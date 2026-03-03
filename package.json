@@ -1,5 +1,5 @@
 {
-  "name": "scorm-builder",
+  "name": "scorm-course-builder",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,24 +7,30 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "extract-example-course": "node scripts/extract-example-course.cjs"
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@vercel/blob": "^0.24.0",
     "jszip": "^3.10.1",
-    "mammoth": "^1.11.0",
     "next": "14.2.18",
-    "openai": "^4.73.0",
+    "openai": "^6.25.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
-    "eslint": "^8.0.0",
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "eslint": "^8.57.0",
     "eslint-config-next": "14.2.18",
-    "postcss": "^8.4.0",
-    "tailwindcss": "^3.4.0",
-    "typescript": "^5.0.0"
+    "postcss": "^8.4.47",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^3.4.15",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
   }
 }
