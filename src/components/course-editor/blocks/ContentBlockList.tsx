@@ -29,11 +29,26 @@ export function ContentBlockList({
 
   const sorted = [...blocks].sort((a, b) => a.order - b.order);
 
-  async function addBlock(type: "text" | "heading" | "image" | "video_embed") {
+  async function addBlock(
+    type: "text" | "heading" | "image" | "video_embed" | "key_insight" | "key_point"
+  ) {
     setError(null);
     setAdding(true);
     try {
-      const content = type === "text" ? { text: "" } : type === "heading" ? { level: 1, text: "" } : type === "image" ? { url: "", alt: "" } : { url: "" };
+      const content =
+        type === "text"
+          ? { text: "" }
+          : type === "heading"
+            ? { level: 1, text: "" }
+            : type === "image"
+              ? { url: "", alt: "" }
+              : type === "video_embed"
+                ? { url: "" }
+                : type === "key_insight"
+                  ? { text: "" }
+                  : type === "key_point"
+                    ? { title: "", text: "" }
+                    : { url: "" };
       await createContentBlock(courseId, moduleId, lessonId, pageId, {
         type,
         content,
@@ -96,6 +111,22 @@ export function ContentBlockList({
           className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
         >
           + Video
+        </button>
+        <button
+          type="button"
+          onClick={() => addBlock("key_insight")}
+          disabled={adding}
+          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          + Key insight
+        </button>
+        <button
+          type="button"
+          onClick={() => addBlock("key_point")}
+          disabled={adding}
+          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          + Key point
         </button>
       </div>
     </div>

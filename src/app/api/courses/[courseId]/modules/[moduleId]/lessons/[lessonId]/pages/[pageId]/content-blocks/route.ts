@@ -12,7 +12,7 @@ export async function POST(
     if (!type || typeof type !== "string") {
       return NextResponse.json({ error: "type is required" }, { status: 400 });
     }
-    const validTypes = ["text", "heading", "image", "video_embed"];
+    const validTypes = ["text", "heading", "image", "video_embed", "key_insight", "key_point"];
     if (!validTypes.includes(type)) {
       return NextResponse.json({ error: "Invalid content block type" }, { status: 400 });
     }

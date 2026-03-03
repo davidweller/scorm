@@ -1,6 +1,12 @@
 import type { BrandConfig } from "./branding";
 
-export type ContentBlockType = "text" | "heading" | "image" | "video_embed";
+export type ContentBlockType =
+  | "text"
+  | "heading"
+  | "image"
+  | "video_embed"
+  | "key_insight"
+  | "key_point";
 export type InteractionBlockType = "multiple_choice" | "true_false" | "reflection";
 
 export interface ContentBlockData {

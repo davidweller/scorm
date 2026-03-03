@@ -36,18 +36,18 @@ export function renderContentBlock(block: ContentBlock): string {
   const c = block.content || {};
   if (block.type === "text") {
     const text = typeof c.text === "string" ? c.text : "";
-    return `<div class="content-text">${nl2br(text)}</div>`;
+    return `<div class="content-text reveal">${nl2br(text)}</div>`;
   }
   if (block.type === "heading") {
     const level = Math.min(6, Math.max(1, Number(c.level) || 2));
     const text = typeof c.text === "string" ? c.text : "";
-    return `<h${level} class="content-heading">${escapeHtml(text)}</h${level}>`;
+    return `<h${level} class="content-heading reveal">${escapeHtml(text)}</h${level}>`;
   }
   if (block.type === "image") {
     const url = typeof c.url === "string" ? c.url : "";
     const alt = typeof c.alt === "string" ? c.alt : "";
     if (!url) return "";
-    return `<figure class="content-image"><img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" /></figure>`;
+    return `<figure class="content-image reveal"><img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" /></figure>`;
   }
   if (block.type === "video_embed") {
     const url = typeof c.url === "string" ? c.url : "";
@@ -55,7 +55,17 @@ export function renderContentBlock(block: ContentBlock): string {
     const embed = url.includes("youtube") || url.includes("youtu.be")
       ? url.replace(/youtu\.be\/([^?]+)/, "youtube.com/embed/$1").replace(/watch\?v=([^&]+)/, "embed/$1")
       : url;
-    return `<div class="content-video"><iframe src="${escapeHtml(embed)}" allowfullscreen></iframe></div>`;
+    return `<div class="content-video reveal"><iframe src="${escapeHtml(embed)}" allowfullscreen></iframe></div>`;
+  }
+  if (block.type === "key_insight") {
+    const text = typeof c.text === "string" ? c.text : "";
+    return `<div class="key-insight reveal"><p>${nl2br(text)}</p></div>`;
+  }
+  if (block.type === "key_point") {
+    const text = typeof c.text === "string" ? c.text : "";
+    const title = typeof c.title === "string" ? c.title : "";
+    const titleHtml = title ? `<p class="content-card-title">${escapeHtml(title)}</p>` : "";
+    return `<div class="content-card reveal">${titleHtml}<div class="content-card-body">${nl2br(text)}</div></div>`;
   }
   return "";
 }
@@ -81,17 +91,17 @@ export function renderInteractionBlock(
       : "";
   if (block.type === "reflection") {
     const prompt = typeof cfg.prompt === "string" ? cfg.prompt : "";
-    return `<div class="interaction reflection"><p class="prompt">${nl2br(prompt)}</p><textarea class="reflection-input" rows="4" placeholder="Your response..."></textarea></div>`;
+    return `<div class="interaction reflection reveal"><p class="prompt">${nl2br(prompt)}</p><textarea class="reflection-input" rows="4" placeholder="Your response..."></textarea></div>`;
   }
   if (block.type === "multiple_choice") {
     const question = typeof cfg.question === "string" ? cfg.question : "";
     const options = Array.isArray(cfg.options) ? cfg.options : [];
-    const opts = options.map((o, i) => `<li><label><input type="radio" name="mc-${block.id}" value="${i}" /> ${escapeHtml(String(o))}</label></li>`).join("");
-    return `<div class="interaction multiple-choice"${dataAttrs}><p class="question">${nl2br(question)}</p><ul class="options">${opts}</ul></div>`;
+    const opts = options.map((o, i) => `<li class="option-item"><label><input type="radio" name="mc-${block.id}" value="${i}" /> ${escapeHtml(String(o))}</label></li>`).join("");
+    return `<div class="interaction multiple-choice reveal"${dataAttrs}><p class="question">${nl2br(question)}</p><ul class="options">${opts}</ul></div>`;
   }
   if (block.type === "true_false") {
     const question = typeof cfg.question === "string" ? cfg.question : "";
-    return `<div class="interaction true-false"${dataAttrs}><p class="question">${nl2br(question)}</p><ul class="options"><li><label><input type="radio" name="tf-${block.id}" value="true" /> True</label></li><li><label><input type="radio" name="tf-${block.id}" value="false" /> False</label></li></ul></div>`;
+    return `<div class="interaction true-false reveal"${dataAttrs}><p class="question">${nl2br(question)}</p><ul class="options"><li class="option-item"><label><input type="radio" name="tf-${block.id}" value="true" /> True</label></li><li class="option-item"><label><input type="radio" name="tf-${block.id}" value="false" /> False</label></li></ul></div>`;
   }
   return "";
 }
@@ -160,6 +170,10 @@ export function renderPageHtml(options: {
   brandConfig?: BrandConfig | null;
   logoPath?: string;
   scormRuntime?: ScormRuntimeOptions;
+  moduleIndex?: number;
+  moduleTitle?: string;
+  lessonIndex?: number;
+  lessonTitle?: string;
 }): string {
   const {
     pageTitle,
@@ -172,6 +186,10 @@ export function renderPageHtml(options: {
     brandConfig,
     logoPath,
     scormRuntime,
+    moduleIndex,
+    moduleTitle,
+    lessonIndex,
+    lessonTitle,
   } = options;
   const contentHtml = [...contentBlocks]
     .sort((a, b) => a.order - b.order)
@@ -199,6 +217,57 @@ export function renderPageHtml(options: {
       `<header class="course-header"><img src="${escapeHtml(logoPath)}" alt="Logo" class="course-logo" /></header>`
     : "";
   const bodyDataAttrs = buildScormBodyDataAttrs(scormRuntime);
+
+  const progressPercent =
+    scormRuntime && scormRuntime.totalPages > 0
+      ? Math.round(((scormRuntime.pageIndex + 1) / scormRuntime.totalPages) * 100)
+      : 100;
+  const progressBarHtml =
+    scormRuntime && scormRuntime.totalPages > 0
+      ? `<div class="progress-bar" role="presentation"><div class="progress-bar-fill" style="width: ${progressPercent}%;"></div></div>`
+      : "";
+
+  const microLabelHtml =
+    moduleIndex !== undefined && moduleTitle
+      ? `<p class="micro-label">MODULE ${moduleIndex + 1}${lessonIndex !== undefined && lessonTitle ? ` · ${lessonTitle}` : ""}</p>`
+      : "";
+
+  const pageIndex = scormRuntime?.pageIndex ?? 0;
+  const sectionNumber = String(pageIndex + 1).padStart(2, "0");
+  const sectionAnchorHtml = `<span class="section-number" aria-hidden="true">${sectionNumber}</span>`;
+
+  const bodyContent = `
+  ${progressBarHtml}
+  <div class="course-wrapper">
+    ${logoHtml}
+    <main class="course-main">
+      ${microLabelHtml}
+      <div class="section-heading-wrap">
+        ${sectionAnchorHtml}
+        <h1>${escapeHtml(pageTitle)}</h1>
+      </div>
+      <div class="content">${contentHtml}</div>
+      <div class="interactions">${interactionHtml}</div>
+      ${nav}
+    </main>
+  </div>
+  <script src="${escapeHtml(scormApiPath)}"></script>
+  <script>
+${buildScormRuntimeScript(scormRuntime)}
+  </script>
+  <script>
+(function() {
+  var reveals = document.querySelectorAll('.reveal');
+  if (!reveals.length) return;
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  reveals.forEach(function(el) { observer.observe(el); });
+})();
+  </script>`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -207,28 +276,54 @@ export function renderPageHtml(options: {
   <title>${escapeHtml(pageTitle)} - ${escapeHtml(courseTitle)}</title>
   ${fontLink}
   <style>
-    body { font-family: ${bodyFontFamily}; max-width: 800px; margin: 0 auto; padding: 1.5rem; line-height: 1.6; }
-    h1, h2, h3, h4, h5, h6, .content-heading { font-family: ${headingFontFamily}; }
-    ${brandCss}
-    .course-header { margin-bottom: 1rem; }
+    :root { --muted: #6b7280; }
+    body { font-family: ${bodyFontFamily}; font-size: 1.05rem; line-height: 1.65; margin: 0; padding: 0; color: #1a1a1a; }
+    .course-wrapper { max-width: 780px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    .course-main { background: #f7f8fa; border-top: 4px solid var(--brand-accent, #ff7700); padding: 3rem 2rem; margin-top: 0; border-radius: 0 0 12px 12px; }
+    .progress-bar { position: sticky; top: 0; left: 0; right: 0; height: 3px; background: rgba(0,0,0,0.06); z-index: 100; }
+    .progress-bar-fill { height: 100%; background: var(--brand-accent, #ff7700); transition: width 0.2s ease; }
+    .course-header { margin-bottom: 2rem; }
     .course-logo { max-height: 48px; width: auto; }
-    .content-text, .content-heading { margin: 1em 0; }
-    .content-image img { max-width: 100%; height: auto; }
-    .content-video iframe { width: 100%; aspect-ratio: 16/9; }
-    .interaction { margin: 1.5em 0; padding: 1em; background: #f5f5f5; border-radius: 8px; }
-    .page-nav { display: flex; justify-content: space-between; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #ddd; }
+    .micro-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 0.25rem 0; }
+    .section-heading-wrap { position: relative; margin-bottom: 3rem; }
+    .section-number { position: absolute; left: 0; top: -0.2em; font-size: 4rem; font-weight: 700; opacity: 0.03; line-height: 1; pointer-events: none; }
+    h1, h2, h3, h4, h5, h6, .content-heading { font-family: ${headingFontFamily}; }
+    h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 0.5em 0; }
+    h2 { font-size: 1.65rem; font-weight: 600; margin: 2rem 0 0.5em 0; }
+    h3 { font-size: 1.2rem; font-weight: 500; margin: 1.5rem 0 0.35em 0; }
+    .content-text { margin: 1.2em 0; }
+    .content-text p { margin: 0 0 1.2em 0; }
+    .content-text p:last-child { margin-bottom: 0; }
+    .content-heading { margin: 2rem 0 0.5em 0; }
+    .content-heading:first-of-type { margin-top: 0; }
+    .content-image { margin: 3rem 0; }
+    .content-image img { max-width: 100%; height: auto; border-radius: 8px; }
+    .content-video { margin: 3rem 0; }
+    .content-video iframe { width: 100%; aspect-ratio: 16/9; border-radius: 8px; }
+    .key-insight { margin: 3rem 0; padding: 1.5rem 1.5rem 1.5rem 1.75rem; border-left: 4px solid var(--brand-accent, #ff7700); background: rgba(0,0,0,0.02); font-size: 1.1rem; line-height: 1.65; border-radius: 0 8px 8px 0; }
+    .key-insight p { margin: 0; }
+    .content-card { margin: 3rem 0; padding: 24px 32px; background: #ffffff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+    .content-card-title { font-weight: 600; font-size: 1.1rem; margin: 0 0 0.75em 0; }
+    .content-card-body { margin: 0; }
+    .interaction { margin: 4rem 0; padding: 24px 32px; background: #ffffff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+    .interaction .question, .interaction .prompt { margin: 0 0 1rem 0; font-weight: 500; }
+    .interaction .options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+    .interaction .option-item { margin: 0; }
+    .interaction .option-item label { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 8px; border: 2px solid #e5e7eb; cursor: pointer; transition: border-color 0.15s ease, background-color 0.15s ease; }
+    .interaction .option-item label:hover { border-color: var(--brand-accent, #ff7700); background: rgba(255,119,0,0.04); }
+    .interaction .option-item:has(input:checked) label { border-color: var(--brand-accent, #ff7700); background: rgba(255,119,0,0.08); }
+    .interaction .option-item label:focus-within { border-color: var(--brand-accent, #ff7700); }
+    .interaction .reflection-input { width: 100%; padding: 0.75rem; border-radius: 8px; border: 2px solid #e5e7eb; font-family: inherit; font-size: 1rem; resize: vertical; transition: border-color 0.15s ease; }
+    .interaction .reflection-input:focus { outline: none; border-color: var(--brand-accent, #ff7700); }
+    .page-nav { display: flex; justify-content: space-between; margin-top: 4rem; padding-top: 2rem; border-top: 1px solid rgba(0,0,0,0.08); }
+    .page-nav a { text-decoration: none; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; transition: background-color 0.15s ease, color 0.15s ease; }
+    .reveal { opacity: 0; transition: opacity 0.25s ease; }
+    .reveal.visible { opacity: 1; }
+    ${brandCss}
+    .page-nav a { border-radius: 8px; }
   </style>
 </head>
-<body${bodyDataAttrs}>
-  ${logoHtml}
-  <h1>${escapeHtml(pageTitle)}</h1>
-  <div class="content">${contentHtml}</div>
-  <div class="interactions">${interactionHtml}</div>
-  ${nav}
-  <script src="${escapeHtml(scormApiPath)}"></script>
-  <script>
-${buildScormRuntimeScript(scormRuntime)}
-  </script>
+<body${bodyDataAttrs}>${bodyContent}
 </body>
 </html>`;
 }

@@ -26,8 +26,10 @@ export interface CourseForExport {
   brandConfig?: BrandConfig | null;
   modules: {
     id: string;
+    title: string;
     lessons: {
       id: string;
+      title: string;
       pages: {
         id: string;
         title: string;
@@ -93,34 +95,45 @@ export async function buildScorm12Zip(course: CourseForExport): Promise<Buffer> 
     }
   }
 
-  for (let i = 0; i < pages.length; i++) {
-    const { page } = pages[i];
-    const prevHref = i > 0 ? `page_${i - 1}.html` : undefined;
-    const nextHref = i < pages.length - 1 ? `page_${i + 1}.html` : undefined;
-    const gradingKeysByBlockId: Record<string, GradingKey> = {};
-    for (const block of page.interactionBlocks ?? []) {
-      const key = getGradingKey({ id: block.id, type: block.type, config: block.config ?? {} });
-      if (key) gradingKeysByBlockId[block.id] = key;
+  let pageIdx = 0;
+  for (const mod of course.modules ?? []) {
+    const moduleIndex = course.modules!.indexOf(mod);
+    for (const lesson of mod.lessons ?? []) {
+      const lessonIndex = mod.lessons!.indexOf(lesson);
+      for (const page of lesson.pages ?? []) {
+        const i = pageIdx++;
+        const prevHref = i > 0 ? `page_${i - 1}.html` : undefined;
+        const nextHref = i < pages.length - 1 ? `page_${i + 1}.html` : undefined;
+        const gradingKeysByBlockId: Record<string, GradingKey> = {};
+        for (const block of page.interactionBlocks ?? []) {
+          const key = getGradingKey({ id: block.id, type: block.type, config: block.config ?? {} });
+          if (key) gradingKeysByBlockId[block.id] = key;
+        }
+        const scormRuntime: ScormRuntimeOptions = {
+          pageIndex: i,
+          totalPages: pages.length,
+          totalScoreMax: Math.max(1, totalScoreMax),
+          gradingKeysByBlockId,
+        };
+        const html = renderPageHtml({
+          pageTitle: page.title,
+          contentBlocks: page.contentBlocks,
+          interactionBlocks: page.interactionBlocks,
+          courseTitle: course.title,
+          prevHref,
+          nextHref,
+          scormApiPath: "../scorm-api.js",
+          brandConfig: brandConfig ?? undefined,
+          logoPath,
+          scormRuntime,
+          moduleIndex,
+          moduleTitle: mod.title,
+          lessonIndex,
+          lessonTitle: lesson.title,
+        });
+        contentFolder.file(`page_${i}.html`, html);
+      }
     }
-    const scormRuntime: ScormRuntimeOptions = {
-      pageIndex: i,
-      totalPages: pages.length,
-      totalScoreMax: Math.max(1, totalScoreMax),
-      gradingKeysByBlockId,
-    };
-    const html = renderPageHtml({
-      pageTitle: page.title,
-      contentBlocks: page.contentBlocks,
-      interactionBlocks: page.interactionBlocks,
-      courseTitle: course.title,
-      prevHref,
-      nextHref,
-      scormApiPath: "../scorm-api.js",
-      brandConfig: brandConfig ?? undefined,
-      logoPath,
-      scormRuntime,
-    });
-    contentFolder.file(`page_${i}.html`, html);
   }
 
   const blob = await zip.generateAsync({ type: "nodebuffer" });

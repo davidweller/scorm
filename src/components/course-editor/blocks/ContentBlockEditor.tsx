@@ -73,6 +73,26 @@ export function ContentBlockEditor({
       </BlockWrap>
     );
   }
+  if (block.type === "key_insight") {
+    return (
+      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+        <KeyInsightBlockEditor
+          content={block.content as { text?: string }}
+          onSave={(c) => save(c)}
+        />
+      </BlockWrap>
+    );
+  }
+  if (block.type === "key_point") {
+    return (
+      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+        <KeyPointBlockEditor
+          content={block.content as { title?: string; text?: string }}
+          onSave={(c) => save(c)}
+        />
+      </BlockWrap>
+    );
+  }
   return (
     <BlockWrap block={block} onDelete={onDelete} saving={saving}>
       <p className="text-sm text-gray-400">Unknown block type: {block.type}</p>
@@ -218,6 +238,57 @@ function VideoEmbedBlockEditor({
         placeholder="YouTube or Vimeo URL"
       />
       <p className="mt-1 text-xs text-gray-500">Paste a YouTube or Vimeo link; it will be embedded in the export.</p>
+    </div>
+  );
+}
+
+function KeyInsightBlockEditor({
+  content,
+  onSave,
+}: {
+  content: { text?: string };
+  onSave: (c: Record<string, unknown>) => void;
+}) {
+  const [text, setText] = useState(content.text ?? "");
+  return (
+    <textarea
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => onSave({ text })}
+      rows={3}
+      className="w-full resize-y rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+      placeholder="Key insight or pull quote (e.g. a short, memorable statement)"
+    />
+  );
+}
+
+function KeyPointBlockEditor({
+  content,
+  onSave,
+}: {
+  content: { title?: string; text?: string };
+  onSave: (c: Record<string, unknown>) => void;
+}) {
+  const [title, setTitle] = useState(content.title ?? "");
+  const [text, setText] = useState(content.text ?? "");
+  return (
+    <div className="space-y-2">
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={() => onSave({ title, text })}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm font-medium focus:border-blue-500 focus:outline-none"
+        placeholder="Key point title (optional)"
+      />
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => onSave({ title, text })}
+        rows={3}
+        className="w-full resize-y rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+        placeholder="Key point content"
+      />
     </div>
   );
 }
