@@ -13,9 +13,20 @@ export async function generatePagesForLesson(courseId: string, lessonId: string)
       ilos: true,
       assessmentPlan: true,
       settings: true,
+      targetWordCount: true,
     },
   });
   if (!course) return { success: false, error: "Course not found" };
+
+  let targetWordCountPerLesson: number | undefined;
+  if (course.targetWordCount) {
+    const totalLessons = await prisma.lesson.count({
+      where: { module: { courseId } },
+    });
+    if (totalLessons > 0) {
+      targetWordCountPerLesson = Math.round(course.targetWordCount / totalLessons);
+    }
+  }
 
   const lesson = await prisma.lesson.findFirst({
     where: { id: lessonId, module: { courseId } },
@@ -44,6 +55,7 @@ export async function generatePagesForLesson(courseId: string, lessonId: string)
     ilos,
     assessmentPlan:
       typeof course.assessmentPlan === "string" ? course.assessmentPlan : undefined,
+    targetWordCountPerLesson,
   };
   let generated: Awaited<ReturnType<typeof generateLessonContent>>;
   try {

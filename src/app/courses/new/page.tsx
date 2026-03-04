@@ -10,7 +10,7 @@ export default function NewCoursePage() {
   const [title, setTitle] = useState("");
   const [overview, setOverview] = useState("");
   const [audience, setAudience] = useState("");
-  const [duration, setDuration] = useState("");
+  const [targetWordCount, setTargetWordCount] = useState<number | "">("");
   const [tone, setTone] = useState("");
   const [complianceLevel, setComplianceLevel] = useState("");
   const [primaryColor, setPrimaryColor] = useState(DEFAULT_BRAND_CONFIG.primary ?? "");
@@ -49,7 +49,7 @@ export default function NewCoursePage() {
           title: title.trim() || "Untitled Course",
           overview: overview.trim() || undefined,
           audience: audience.trim() || undefined,
-          duration: duration.trim() || undefined,
+          targetWordCount: targetWordCount !== "" ? targetWordCount : undefined,
           tone: tone.trim() || undefined,
           complianceLevel: complianceLevel.trim() || undefined,
           brandConfig,
@@ -123,15 +123,16 @@ export default function NewCoursePage() {
                 />
               </div>
               <div>
-                <label htmlFor="duration" className="block text-sm font-medium text-gray-700">
-                  Duration
+                <label htmlFor="targetWordCount" className="block text-sm font-medium text-gray-700">
+                  Target Word Count
                 </label>
                 <input
-                  id="duration"
-                  type="text"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  placeholder="e.g. 4 weeks, 2 hours"
+                  id="targetWordCount"
+                  type="number"
+                  min="0"
+                  value={targetWordCount}
+                  onChange={(e) => setTargetWordCount(e.target.value ? parseInt(e.target.value, 10) : "")}
+                  placeholder="e.g. 5000"
                   className="mt-1 w-full rounded border border-gray-300 px-3 py-2"
                 />
               </div>

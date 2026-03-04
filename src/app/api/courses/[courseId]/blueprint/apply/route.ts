@@ -19,11 +19,13 @@ export async function POST(
     const body = await request.json();
     const {
       description,
+      targetWordCount,
       modules: modulesInput,
       ilos,
       assessmentPlan,
     } = body as {
       description?: string;
+      targetWordCount?: number;
       modules?: BlueprintModule[];
       ilos?: string[];
       assessmentPlan?: string;
@@ -34,6 +36,7 @@ export async function POST(
         where: { id: courseId },
         data: {
           ...(description !== undefined && { overview: description.trim() || null }),
+          ...(targetWordCount !== undefined && { targetWordCount: typeof targetWordCount === "number" ? targetWordCount : null }),
           ...(ilos !== undefined && { ilos: Array.isArray(ilos) ? (ilos as Prisma.InputJsonValue) : Prisma.JsonNull }),
           ...(assessmentPlan !== undefined && {
             assessmentPlan:

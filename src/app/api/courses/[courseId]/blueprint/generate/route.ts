@@ -39,7 +39,7 @@ export async function POST(
       title: course.title,
       overview: course.overview,
       audience: course.audience,
-      duration: course.duration,
+      targetWordCount: course.targetWordCount,
       tone: course.tone,
       complianceLevel: course.complianceLevel,
     };

@@ -14,7 +14,7 @@ export interface BlueprintContext {
   title: string;
   overview?: string | null;
   audience?: string | null;
-  duration?: string | null;
+  targetWordCount?: number | null;
   tone?: string | null;
   complianceLevel?: string | null;
 }
@@ -44,7 +44,7 @@ export async function generateBlueprintSection(
 Course title: ${context.title}
 ${context.overview ? `Overview: ${context.overview}` : ""}
 ${context.audience ? `Audience: ${context.audience}` : ""}
-${context.duration ? `Duration: ${context.duration}` : ""}
+${context.targetWordCount ? `Target word count for whole course: ${context.targetWordCount} words` : ""}
 ${context.tone ? `Tone: ${context.tone}` : ""}
 ${context.complianceLevel ? `Compliance: ${context.complianceLevel}` : ""}
 `;
@@ -148,6 +148,7 @@ export interface LessonContentContext {
   tone?: string | null;
   ilos?: string[] | null;
   assessmentPlan?: string | null;
+  targetWordCountPerLesson?: number | null;
 }
 
 export interface GeneratedContentBlock {
@@ -171,6 +172,9 @@ export async function generateLessonContent(
   context: LessonContentContext
 ): Promise<GeneratedLessonContent> {
   const ilosText = Array.isArray(context.ilos) && context.ilos.length ? context.ilos.join("\n") : "Not specified.";
+  const wordCountInstruction = context.targetWordCountPerLesson
+    ? `Target word count for this lesson: approximately ${context.targetWordCountPerLesson} words. Adjust content length accordingly.`
+    : "";
   const prompt = `You are an instructional designer. Generate lesson page content for this lesson in a course.
 Course: ${context.courseTitle}
 ${context.overview ? `Overview: ${context.overview}` : ""}
@@ -178,6 +182,7 @@ ${context.audience ? `Audience: ${context.audience}` : ""}
 ${context.tone ? `Tone: ${context.tone}` : ""}
 Course learning outcomes (ILOs): ${ilosText}
 ${context.assessmentPlan ? `Assessment plan: ${context.assessmentPlan}` : ""}
+${wordCountInstruction}
 
 Lesson title: ${lessonTitle}
 
@@ -196,7 +201,7 @@ Respond with a single JSON object with this exact structure. No markdown.
     { "type": "reflection", "config": { "prompt": "A reflection question for the learner (1-2 sentences)" } }
   ]
 }
-Use "text" and "heading" only for contentBlocks. For interactionBlocks use "reflection" with "prompt", or "multiple_choice" with "question", "options" (array of strings), "correctIndex" (0-based), "explanation" (optional). Generate exactly one interaction block (reflection preferred). Keep content concise and aligned to the lesson and ILOs.`;
+Use "text" and "heading" only for contentBlocks. For interactionBlocks use "reflection" with "prompt", or "multiple_choice" with "question", "options" (array of strings), "correctIndex" (0-based), "explanation" (optional). Generate exactly one interaction block (reflection preferred). Keep content aligned to the lesson and ILOs.${context.targetWordCountPerLesson ? ` Aim for approximately ${context.targetWordCountPerLesson} words total in the text content.` : ""}`;
 
   const res = await client.chat.completions.create({
     model: "gpt-4o-mini",

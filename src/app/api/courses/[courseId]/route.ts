@@ -49,7 +49,7 @@ export async function PATCH(
       title,
       overview,
       audience,
-      duration,
+      targetWordCount,
       tone,
       complianceLevel,
       brandConfig,
@@ -60,7 +60,7 @@ export async function PATCH(
       title?: string;
       overview?: string;
       audience?: string;
-      duration?: string;
+      targetWordCount?: number | null;
       tone?: string;
       complianceLevel?: string;
       brandConfig?: unknown;
@@ -72,7 +72,7 @@ export async function PATCH(
     if (title !== undefined) data.title = typeof title === "string" ? title.trim() : undefined;
     if (overview !== undefined) data.overview = typeof overview === "string" ? overview.trim() : null;
     if (audience !== undefined) data.audience = typeof audience === "string" ? audience.trim() || null : undefined;
-    if (duration !== undefined) data.duration = typeof duration === "string" ? duration.trim() || null : undefined;
+    if (targetWordCount !== undefined) data.targetWordCount = typeof targetWordCount === "number" ? targetWordCount : null;
     if (tone !== undefined) data.tone = typeof tone === "string" ? tone.trim() || null : undefined;
     if (complianceLevel !== undefined) data.complianceLevel = typeof complianceLevel === "string" ? complianceLevel.trim() || null : undefined;
     if (brandConfig !== undefined) data.brandConfig = brandConfig as Prisma.InputJsonValue;

@@ -18,7 +18,7 @@ export default function BlueprintPage() {
     title: string;
     overview: string | null;
     audience: string | null;
-    duration: string | null;
+    targetWordCount: number | null;
     modules?: { id: string; title: string; order: number; lessons: { id: string; title: string; order: number }[] }[];
     ilos?: string[] | null;
     assessmentPlan?: string | null;
@@ -27,6 +27,7 @@ export default function BlueprintPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [description, setDescription] = useState("");
+  const [targetWordCount, setTargetWordCount] = useState<number | "">("");
   const [modules, setModules] = useState<BlueprintModule[]>([]);
   const [ilos, setIlos] = useState<string[]>([]);
   const [assessmentPlan, setAssessmentPlan] = useState("");
@@ -44,6 +45,7 @@ export default function BlueprintPage() {
       const data = await res.json();
       setCourse(data);
       setDescription(data.overview ?? "");
+      setTargetWordCount(typeof data.targetWordCount === "number" ? data.targetWordCount : "");
       setModules(
         (data.modules ?? []).map((m: { title: string; lessons: { title: string }[] }) => ({
           title: m.title,
@@ -108,6 +110,7 @@ export default function BlueprintPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           description: description.trim() || undefined,
+          targetWordCount: targetWordCount !== "" ? targetWordCount : undefined,
           modules: modules.filter((m) => m.title.trim()).map((m) => ({
             title: m.title.trim(),
             lessons: (m.lessons ?? []).filter((l) => l.title.trim()).map((l) => ({ title: l.title.trim() })),
@@ -226,7 +229,7 @@ export default function BlueprintPage() {
               disabled={regenerating !== null}
               className="rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
             >
-              {regenerating === "description" ? "…" : "Regenerate"}
+              {regenerating === "description" ? "…" : "Generate"}
             </button>
           </div>
           <textarea
@@ -235,6 +238,80 @@ export default function BlueprintPage() {
             rows={3}
             className="mt-2 w-full rounded border border-gray-300 px-3 py-2"
             placeholder="Brief course description"
+          />
+        </section>
+
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold">Target Word Count for Whole Course</h2>
+          <div className="mt-2 flex items-center gap-3">
+            <input
+              type="number"
+              min="0"
+              value={targetWordCount}
+              onChange={(e) => setTargetWordCount(e.target.value ? parseInt(e.target.value, 10) : "")}
+              placeholder="e.g. 5000"
+              className="w-40 rounded border border-gray-300 px-3 py-2"
+            />
+            <span className="text-sm text-gray-500">words</span>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            The target total word count for all generated lesson content. This will be distributed roughly equally across all lessons.
+          </p>
+        </section>
+
+        <section className="mt-8">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Learning outcomes (ILOs)</h2>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleRegenerate("ilos")}
+                disabled={regenerating !== null}
+                className="rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+              >
+                {regenerating === "ilos" ? "…" : "Generate"}
+              </button>
+              <button type="button" onClick={addIlo} className="rounded bg-gray-200 px-2 py-1 text-sm hover:bg-gray-300">
+                + ILO
+              </button>
+            </div>
+          </div>
+          <ul className="mt-2 space-y-2">
+            {ilos.map((ilo, i) => (
+              <li key={i} className="flex gap-2">
+                <input
+                  type="text"
+                  value={ilo}
+                  onChange={(e) => setIlo(i, e.target.value)}
+                  placeholder="By the end of this course…"
+                  className="flex-1 rounded border border-gray-300 px-3 py-2"
+                />
+                <button type="button" onClick={() => removeIlo(i)} className="text-red-600 hover:underline">
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="mt-8">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Assessment plan</h2>
+            <button
+              type="button"
+              onClick={() => handleRegenerate("assessmentPlan")}
+              disabled={regenerating !== null}
+              className="rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+            >
+              {regenerating === "assessmentPlan" ? "…" : "Generate"}
+            </button>
+          </div>
+          <textarea
+            value={assessmentPlan}
+            onChange={(e) => setAssessmentPlan(e.target.value)}
+            rows={4}
+            className="mt-2 w-full rounded border border-gray-300 px-3 py-2"
+            placeholder="How and where assessment will occur…"
           />
         </section>
 
@@ -248,7 +325,7 @@ export default function BlueprintPage() {
                 disabled={regenerating !== null}
                 className="rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
               >
-                {regenerating === "modules" ? "…" : "Regenerate modules"}
+                {regenerating === "modules" ? "…" : "Generate modules"}
               </button>
               <button
                 type="button"
@@ -256,7 +333,7 @@ export default function BlueprintPage() {
                 disabled={regenerating !== null || modules.length === 0}
                 className="rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
               >
-                {regenerating === "lessons" ? "…" : "Regenerate lessons"}
+                {regenerating === "lessons" ? "…" : "Generate lessons"}
               </button>
               <button
                 type="button"
@@ -306,62 +383,6 @@ export default function BlueprintPage() {
               </div>
             ))}
           </div>
-        </section>
-
-        <section className="mt-8">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Learning outcomes (ILOs)</h2>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => handleRegenerate("ilos")}
-                disabled={regenerating !== null}
-                className="rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
-              >
-                {regenerating === "ilos" ? "…" : "Regenerate"}
-              </button>
-              <button type="button" onClick={addIlo} className="rounded bg-gray-200 px-2 py-1 text-sm hover:bg-gray-300">
-                + ILO
-              </button>
-            </div>
-          </div>
-          <ul className="mt-2 space-y-2">
-            {ilos.map((ilo, i) => (
-              <li key={i} className="flex gap-2">
-                <input
-                  type="text"
-                  value={ilo}
-                  onChange={(e) => setIlo(i, e.target.value)}
-                  placeholder="By the end of this course…"
-                  className="flex-1 rounded border border-gray-300 px-3 py-2"
-                />
-                <button type="button" onClick={() => removeIlo(i)} className="text-red-600 hover:underline">
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="mt-8">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Assessment plan</h2>
-            <button
-              type="button"
-              onClick={() => handleRegenerate("assessmentPlan")}
-              disabled={regenerating !== null}
-              className="rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
-            >
-              {regenerating === "assessmentPlan" ? "…" : "Regenerate"}
-            </button>
-          </div>
-          <textarea
-            value={assessmentPlan}
-            onChange={(e) => setAssessmentPlan(e.target.value)}
-            rows={4}
-            className="mt-2 w-full rounded border border-gray-300 px-3 py-2"
-            placeholder="How and where assessment will occur…"
-          />
         </section>
 
         <div className="mt-10 flex gap-2">

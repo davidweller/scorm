@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       title,
       overview,
       audience,
-      duration,
+      targetWordCount,
       tone,
       complianceLevel,
       brandConfig,
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       title: string;
       overview?: string;
       audience?: string;
-      duration?: string;
+      targetWordCount?: number;
       tone?: string;
       complianceLevel?: string;
       brandConfig?: unknown;
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
         title: title.trim(),
         overview: overview?.trim() ?? null,
         audience: audience?.trim() ?? null,
-        duration: duration?.trim() ?? null,
+        targetWordCount: typeof targetWordCount === "number" ? targetWordCount : null,
         tone: tone?.trim() ?? null,
         complianceLevel: complianceLevel?.trim() ?? null,
         brandConfig: brandConfig != null ? (brandConfig as Prisma.InputJsonValue) : Prisma.JsonNull,

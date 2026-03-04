@@ -23,7 +23,7 @@ export async function updateCourse(
     title?: string;
     overview?: string;
     audience?: string;
-    duration?: string;
+    targetWordCount?: number | null;
     tone?: string;
     complianceLevel?: string;
     brandConfig?: unknown;
@@ -199,7 +199,7 @@ export interface CourseApiResponse {
   title: string;
   overview: string | null;
   audience: string | null;
-  duration: string | null;
+  targetWordCount: number | null;
   tone: string | null;
   complianceLevel: string | null;
   brandConfig: unknown;
