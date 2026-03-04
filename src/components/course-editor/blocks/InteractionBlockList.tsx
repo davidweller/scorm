@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DndContext,
   closestCenter,
@@ -102,8 +102,14 @@ export function InteractionBlockList({
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
-
-  const sorted = [...blocks].sort((a, b) => a.order - b.order);
+  
+  // Local state for optimistic reordering
+  const [localBlocks, setLocalBlocks] = useState<InteractionBlockApiResponse[]>([]);
+  
+  // Sync local state when props change
+  useEffect(() => {
+    setLocalBlocks([...blocks].sort((a, b) => a.order - b.order));
+  }, [blocks]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -118,17 +124,23 @@ export function InteractionBlockList({
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = sorted.findIndex((b) => b.id === active.id);
-    const newIndex = sorted.findIndex((b) => b.id === over.id);
+    const oldIndex = localBlocks.findIndex((b) => b.id === active.id);
+    const newIndex = localBlocks.findIndex((b) => b.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const reordered = arrayMove(sorted, oldIndex, newIndex);
+    // Optimistically update local state immediately
+    const reordered = arrayMove(localBlocks, oldIndex, newIndex);
+    setLocalBlocks(reordered);
+    
     const orderUpdates = reordered.map((b, i) => ({ id: b.id, order: i }));
 
     try {
       await reorderInteractionBlocks(courseId, moduleId, lessonId, pageId, orderUpdates);
+      // Refresh to sync with server (local state already shows correct order)
       onRefresh();
     } catch (e) {
+      // Revert on error
+      setLocalBlocks([...blocks].sort((a, b) => a.order - b.order));
       setError(e instanceof Error ? e.message : "Failed to reorder");
     }
   }
@@ -182,9 +194,9 @@ export function InteractionBlockList({
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <SortableContext items={sorted.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={localBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-3 pl-8">
-            {sorted.map((block) => (
+            {localBlocks.map((block) => (
               <SortableInteractionBlock
                 key={block.id}
                 block={block}
