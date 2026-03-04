@@ -56,11 +56,11 @@ async function getCourse(courseId: string): Promise<Course | null> {
 
 function flattenInteractions(course: Course): FlattenedInteraction[] {
   const result: FlattenedInteraction[] = [];
-  for (const module of course.modules ?? []) {
-    for (const lesson of module.lessons ?? []) {
+  for (const mod of course.modules ?? []) {
+    for (const lesson of mod.lessons ?? []) {
       for (const page of lesson.pages ?? []) {
         for (const block of page.interactionBlocks ?? []) {
-          result.push({ block, page, lesson, module });
+          result.push({ block, page, lesson, module: mod });
         }
       }
     }

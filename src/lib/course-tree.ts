@@ -118,6 +118,223 @@ export function getFlowCompletion(course: CourseApiResponse): {
   };
 }
 
+export type StageStatus = "not_started" | "in_progress" | "complete" | "has_issues";
+
+export interface StageCompletion {
+  status: StageStatus;
+  subtext: string;
+  issueCount?: number;
+  isComplete: boolean;
+}
+
+export interface FlowCompletionV2 {
+  blueprint: StageCompletion;
+  generate: StageCompletion;
+  review: StageCompletion;
+  preview: StageCompletion;
+  export: StageCompletion;
+}
+
+export interface CourseIssue {
+  type: "empty_page" | "missing_quiz_answer" | "missing_content" | "no_interactions";
+  severity: "error" | "warning";
+  message: string;
+  pageId?: string;
+  lessonId?: string;
+  moduleId?: string;
+  path?: string;
+}
+
+export function getCourseIssues(course: CourseApiResponse): CourseIssue[] {
+  const issues: CourseIssue[] = [];
+
+  for (const mod of course.modules ?? []) {
+    for (const lesson of mod.lessons ?? []) {
+      for (const page of lesson.pages ?? []) {
+        const hasContent = (page.contentBlocks?.length ?? 0) > 0;
+        if (!hasContent) {
+          issues.push({
+            type: "empty_page",
+            severity: "error",
+            message: `Page "${page.title}" has no content`,
+            pageId: page.id,
+            lessonId: lesson.id,
+            moduleId: mod.id,
+            path: `/courses/${course.id}/edit/${mod.id}/${lesson.id}/${page.id}`,
+          });
+        }
+      }
+      if (lesson.pages.length === 0) {
+        issues.push({
+          type: "missing_content",
+          severity: "warning",
+          message: `Lesson "${lesson.title}" has no pages`,
+          lessonId: lesson.id,
+          moduleId: mod.id,
+          path: `/courses/${course.id}/edit/${mod.id}/${lesson.id}`,
+        });
+      }
+    }
+    if (mod.lessons.length === 0) {
+      issues.push({
+        type: "missing_content",
+        severity: "warning",
+        message: `Module "${mod.title}" has no lessons`,
+        moduleId: mod.id,
+        path: `/courses/${course.id}/blueprint`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+export function getFlowCompletionV2(course: CourseApiResponse): FlowCompletionV2 {
+  const { totalModules, totalLessons, totalPages } = getCourseCounts(course);
+  const completion = getCourseCompletion(course);
+  const issues = getCourseIssues(course);
+  const errorCount = issues.filter((i) => i.severity === "error").length;
+
+  const hasTitle = Boolean(course.title?.trim());
+  const hasOverview = Boolean(course.overview?.trim());
+  const hasStructure = totalModules > 0 && totalLessons > 0;
+  const hasContent = totalPages > 0 && completion > 0;
+  const allPagesHaveContent = completion === 100;
+
+  const blueprint: StageCompletion = (() => {
+    if (!hasTitle) {
+      return { status: "not_started", subtext: "Not started", isComplete: false };
+    }
+    if (!hasStructure) {
+      return { status: "in_progress", subtext: "Add modules & lessons", isComplete: false };
+    }
+    if (!hasOverview) {
+      return { status: "in_progress", subtext: "Add course overview", isComplete: false };
+    }
+    return { status: "complete", subtext: "Objectives + outline set", isComplete: true };
+  })();
+
+  const generate: StageCompletion = (() => {
+    if (!hasStructure) {
+      return { status: "not_started", subtext: "Complete blueprint first", isComplete: false };
+    }
+    if (!hasContent) {
+      return { status: "not_started", subtext: "Not started", isComplete: false };
+    }
+    if (!allPagesHaveContent) {
+      const pagesWithoutContent = totalPages - Math.round((completion / 100) * totalPages);
+      return {
+        status: "in_progress",
+        subtext: `${pagesWithoutContent} page${pagesWithoutContent !== 1 ? "s" : ""} need content`,
+        isComplete: false,
+      };
+    }
+    return { status: "complete", subtext: "Content created", isComplete: true };
+  })();
+
+  const review: StageCompletion = (() => {
+    if (!hasContent) {
+      return { status: "not_started", subtext: "Generate content first", isComplete: false };
+    }
+    if (errorCount > 0) {
+      return {
+        status: "has_issues",
+        subtext: `${errorCount} issue${errorCount !== 1 ? "s" : ""} to fix`,
+        issueCount: errorCount,
+        isComplete: false,
+      };
+    }
+    return { status: "complete", subtext: "Ready", isComplete: true };
+  })();
+
+  const preview: StageCompletion = (() => {
+    if (!hasContent) {
+      return { status: "not_started", subtext: "Generate content first", isComplete: false };
+    }
+    const lastPreviewedAt = (course as { lastPreviewedAt?: string }).lastPreviewedAt;
+    if (!lastPreviewedAt) {
+      return { status: "not_started", subtext: "Not viewed yet", isComplete: false };
+    }
+    return { status: "complete", subtext: "Previewed", isComplete: true };
+  })();
+
+  const exportStage: StageCompletion = (() => {
+    if (!hasContent) {
+      return { status: "not_started", subtext: "Generate content first", isComplete: false };
+    }
+    if (errorCount > 0) {
+      return { status: "has_issues", subtext: "Fix issues first", issueCount: errorCount, isComplete: false };
+    }
+    const lastExportedAt = (course as { lastExportedAt?: string }).lastExportedAt;
+    if (!lastExportedAt) {
+      return { status: "not_started", subtext: "Ready to export", isComplete: false };
+    }
+    return { status: "complete", subtext: "Exported", isComplete: true };
+  })();
+
+  return {
+    blueprint,
+    generate,
+    review,
+    preview,
+    export: exportStage,
+  };
+}
+
+export function getNextRecommendedAction(course: CourseApiResponse): {
+  stage: "blueprint" | "generate" | "review" | "preview" | "export";
+  label: string;
+  description: string;
+  href: string;
+  issueCount?: number;
+} {
+  const flow = getFlowCompletionV2(course);
+
+  if (!flow.blueprint.isComplete) {
+    return {
+      stage: "blueprint",
+      label: "Complete Blueprint",
+      description: "Set up your course structure and objectives",
+      href: `/courses/${course.id}/blueprint`,
+    };
+  }
+
+  if (!flow.generate.isComplete) {
+    return {
+      stage: "generate",
+      label: "Generate Content",
+      description: flow.generate.subtext,
+      href: `/courses/${course.id}/generate`,
+    };
+  }
+
+  if (!flow.review.isComplete) {
+    return {
+      stage: "review",
+      label: "Review Course",
+      description: flow.review.subtext,
+      href: `/courses/${course.id}/review`,
+      issueCount: flow.review.issueCount,
+    };
+  }
+
+  if (!flow.preview.isComplete) {
+    return {
+      stage: "preview",
+      label: "Preview Course",
+      description: "View your course as learners will see it",
+      href: `/courses/${course.id}/preview`,
+    };
+  }
+
+  return {
+    stage: "export",
+    label: "Export Course",
+    description: "Download your SCORM package",
+    href: `/courses/${course.id}/export`,
+  };
+}
+
 export function getModuleStats(module: ModuleApiResponse): {
   lessonCount: number;
   pageCount: number;

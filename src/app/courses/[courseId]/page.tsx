@@ -4,7 +4,7 @@ import { getBaseUrl } from "@/lib/base-url";
 import type { CourseApiResponse } from "@/lib/api";
 import { getCourseCounts, getEstimatedSeatTimeMinutes } from "@/lib/course-tree";
 import { CourseMetadata } from "@/components/course/CourseMetadata";
-import { CoursePrimaryCTA } from "@/components/course/CoursePrimaryCTA";
+import { NextActionPanel } from "@/components/course/NextActionPanel";
 import { ModuleList } from "@/components/course/ModuleList";
 
 async function getCourse(courseId: string): Promise<CourseApiResponse | null> {
@@ -34,21 +34,21 @@ export default async function CoursePage({
             ← Courses
           </Link>
         </div>
-        <div className="text-sm text-gray-500">
-          {counts.totalModules} modules · {counts.totalPages} pages · {counts.totalInteractions} interactions
-          {seatTimeMin != null ? ` · ~${seatTimeMin} min seat time` : ""}
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-6 shadow-sm">
+
+        <NextActionPanel course={course} />
+
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <CourseMetadata courseId={courseId} course={course} />
-          <div className="mt-4">
-            <CoursePrimaryCTA courseId={courseId} course={course} />
+          <div className="mt-3 text-sm text-gray-500">
+            {counts.totalModules} modules · {counts.totalPages} pages · {counts.totalInteractions} interactions
+            {seatTimeMin != null ? ` · ~${seatTimeMin} min seat time` : ""}
           </div>
         </div>
         {course.overview && (
           <p className="text-gray-600">{course.overview}</p>
         )}
         {course.modules?.length > 0 ? (
-          <div className="pt-2">
+          <div id="modules" className="pt-2 scroll-mt-6">
             <ModuleList courseId={courseId} course={course} />
           </div>
         ) : (

@@ -13,6 +13,8 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.9",
+    "@heroicons/react": "^2.2.0",
     "@prisma/client": "^5.22.0",
     "@vercel/blob": "^0.24.0",
     "jszip": "^3.10.1",
