@@ -1,8 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import type { DraggableAttributes } from "@dnd-kit/core";
+import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import type { ContentBlockApiResponse } from "@/lib/api";
 import { updateContentBlock } from "@/lib/api";
+import { BlockWrap } from "./BlockWrap";
+
+export interface ContentBlockEditorProps {
+  courseId: string;
+  moduleId: string;
+  lessonId: string;
+  pageId: string;
+  block: ContentBlockApiResponse;
+  onRefresh: () => void;
+  onDelete: () => void;
+  onRegenerate?: () => void;
+  regenerating?: boolean;
+  dragAttributes?: DraggableAttributes;
+  dragListeners?: SyntheticListenerMap;
+  isDragging?: boolean;
+  style?: React.CSSProperties;
+}
 
 export function ContentBlockEditor({
   courseId,
@@ -12,15 +31,13 @@ export function ContentBlockEditor({
   block,
   onRefresh,
   onDelete,
-}: {
-  courseId: string;
-  moduleId: string;
-  lessonId: string;
-  pageId: string;
-  block: ContentBlockApiResponse;
-  onRefresh: () => void;
-  onDelete: () => void;
-}) {
+  onRegenerate,
+  regenerating,
+  dragAttributes,
+  dragListeners,
+  isDragging,
+  style,
+}: ContentBlockEditorProps) {
   const [saving, setSaving] = useState(false);
 
   async function save(content: Record<string, unknown>) {
@@ -33,9 +50,23 @@ export function ContentBlockEditor({
     }
   }
 
+  const wrapProps = {
+    blockId: block.id,
+    blockType: block.type,
+    variant: "content" as const,
+    saving,
+    regenerating,
+    onDelete,
+    onRegenerate,
+    dragAttributes,
+    dragListeners,
+    isDragging,
+    style,
+  };
+
   if (block.type === "text") {
     return (
-      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+      <BlockWrap {...wrapProps}>
         <TextBlockEditor
           content={block.content as { text?: string }}
           onSave={(c) => save(c)}
@@ -45,7 +76,7 @@ export function ContentBlockEditor({
   }
   if (block.type === "heading") {
     return (
-      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+      <BlockWrap {...wrapProps}>
         <HeadingBlockEditor
           content={block.content as { level?: number; text?: string }}
           onSave={(c) => save(c)}
@@ -55,7 +86,7 @@ export function ContentBlockEditor({
   }
   if (block.type === "image") {
     return (
-      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+      <BlockWrap {...wrapProps}>
         <ImageBlockEditor
           content={block.content as { url?: string; alt?: string }}
           onSave={(c) => save(c)}
@@ -65,7 +96,7 @@ export function ContentBlockEditor({
   }
   if (block.type === "video_embed") {
     return (
-      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+      <BlockWrap {...wrapProps}>
         <VideoEmbedBlockEditor
           content={block.content as { url?: string }}
           onSave={(c) => save(c)}
@@ -75,7 +106,7 @@ export function ContentBlockEditor({
   }
   if (block.type === "key_insight") {
     return (
-      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+      <BlockWrap {...wrapProps}>
         <KeyInsightBlockEditor
           content={block.content as { text?: string }}
           onSave={(c) => save(c)}
@@ -85,7 +116,7 @@ export function ContentBlockEditor({
   }
   if (block.type === "key_point") {
     return (
-      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+      <BlockWrap {...wrapProps}>
         <KeyPointBlockEditor
           content={block.content as { title?: string; text?: string }}
           onSave={(c) => save(c)}
@@ -94,37 +125,9 @@ export function ContentBlockEditor({
     );
   }
   return (
-    <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+    <BlockWrap {...wrapProps}>
       <p className="text-sm text-gray-400">Unknown block type: {block.type}</p>
     </BlockWrap>
-  );
-}
-
-function BlockWrap({
-  block,
-  onDelete,
-  saving,
-  children,
-}: {
-  block: ContentBlockApiResponse;
-  onDelete: () => void;
-  saving: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="group relative rounded border border-gray-200 bg-white p-3">
-      <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
-        <button
-          type="button"
-          onClick={onDelete}
-          className="text-xs text-red-600 hover:underline"
-        >
-          Delete
-        </button>
-      </div>
-      {children}
-    </div>
   );
 }
 
@@ -136,13 +139,30 @@ function TextBlockEditor({
   onSave: (c: Record<string, unknown>) => void;
 }) {
   const [text, setText] = useState(content.text ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [text]);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
   return (
     <textarea
+      ref={textareaRef}
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => onSave({ text })}
-      rows={3}
-      className="w-full resize-y rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+      onKeyDown={handleKeyDown}
+      rows={1}
+      className="w-full resize-none overflow-hidden rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
       placeholder="Enter text…"
     />
   );
@@ -157,6 +177,13 @@ function HeadingBlockEditor({
 }) {
   const [level, setLevel] = useState(content.level ?? 1);
   const [text, setText] = useState(content.text ?? "");
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
   return (
     <div className="space-y-1">
       <select
@@ -166,7 +193,7 @@ function HeadingBlockEditor({
           setLevel(v);
           onSave({ level: v, text });
         }}
-        className="rounded border border-gray-200 text-sm"
+        className="rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
       >
         <option value={1}>Heading 1</option>
         <option value={2}>Heading 2</option>
@@ -177,7 +204,8 @@ function HeadingBlockEditor({
         value={text}
         onChange={(e) => setText(e.target.value)}
         onBlur={() => onSave({ level, text })}
-        className="w-full rounded border border-gray-200 px-2 py-1 text-sm font-semibold focus:border-blue-500 focus:outline-none"
+        onKeyDown={handleKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm font-semibold transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="Heading text…"
       />
     </div>
@@ -193,6 +221,13 @@ function ImageBlockEditor({
 }) {
   const [url, setUrl] = useState(content.url ?? "");
   const [alt, setAlt] = useState(content.alt ?? "");
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
   return (
     <div className="space-y-2">
       <input
@@ -200,7 +235,8 @@ function ImageBlockEditor({
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         onBlur={() => onSave({ url, alt })}
-        className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+        onKeyDown={handleKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="Image URL"
       />
       <input
@@ -208,7 +244,8 @@ function ImageBlockEditor({
         value={alt}
         onChange={(e) => setAlt(e.target.value)}
         onBlur={() => onSave({ url, alt })}
-        className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+        onKeyDown={handleKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="Alt text"
       />
       {url && (
@@ -227,6 +264,13 @@ function VideoEmbedBlockEditor({
   onSave: (c: Record<string, unknown>) => void;
 }) {
   const [url, setUrl] = useState(content.url ?? "");
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
   return (
     <div>
       <input
@@ -234,7 +278,8 @@ function VideoEmbedBlockEditor({
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         onBlur={() => onSave({ url })}
-        className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+        onKeyDown={handleKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="YouTube or Vimeo URL"
       />
       <p className="mt-1 text-xs text-gray-500">Paste a YouTube or Vimeo link; it will be embedded in the export.</p>
@@ -250,13 +295,30 @@ function KeyInsightBlockEditor({
   onSave: (c: Record<string, unknown>) => void;
 }) {
   const [text, setText] = useState(content.text ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [text]);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
   return (
     <textarea
+      ref={textareaRef}
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => onSave({ text })}
-      rows={3}
-      className="w-full resize-y rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+      onKeyDown={handleKeyDown}
+      rows={1}
+      className="w-full resize-none overflow-hidden rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
       placeholder="Key insight or pull quote (e.g. a short, memorable statement)"
     />
   );
@@ -271,6 +333,27 @@ function KeyPointBlockEditor({
 }) {
   const [title, setTitle] = useState(content.title ?? "");
   const [text, setText] = useState(content.text ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [text]);
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
+  function handleTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
   return (
     <div className="space-y-2">
       <input
@@ -278,15 +361,18 @@ function KeyPointBlockEditor({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => onSave({ title, text })}
-        className="w-full rounded border border-gray-200 px-2 py-1 text-sm font-medium focus:border-blue-500 focus:outline-none"
+        onKeyDown={handleInputKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm font-medium transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="Key point title (optional)"
       />
       <textarea
+        ref={textareaRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onBlur={() => onSave({ title, text })}
-        rows={3}
-        className="w-full resize-y rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+        onKeyDown={handleTextareaKeyDown}
+        rows={1}
+        className="w-full resize-none overflow-hidden rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="Key point content"
       />
     </div>

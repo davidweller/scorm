@@ -146,6 +146,22 @@ export async function deleteContentBlock(
   }
 }
 
+export async function reorderContentBlocks(
+  courseId: string,
+  moduleId: string,
+  lessonId: string,
+  pageId: string,
+  orderUpdates: { id: string; order: number }[]
+) {
+  return json<unknown>(
+    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/content-blocks/reorder`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderUpdates }),
+    })
+  );
+}
+
 export async function createInteractionBlock(
   courseId: string,
   moduleId: string,
@@ -191,6 +207,22 @@ export async function deleteInteractionBlock(
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || res.statusText);
   }
+}
+
+export async function reorderInteractionBlocks(
+  courseId: string,
+  moduleId: string,
+  lessonId: string,
+  pageId: string,
+  orderUpdates: { id: string; order: number }[]
+) {
+  return json<unknown>(
+    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/interaction-blocks/reorder`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderUpdates }),
+    })
+  );
 }
 
 // Types matching API responses (course tree)

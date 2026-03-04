@@ -1,8 +1,27 @@
 "use client";
 
 import { useState } from "react";
+import type { DraggableAttributes } from "@dnd-kit/core";
+import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import type { InteractionBlockApiResponse } from "@/lib/api";
 import { updateInteractionBlock } from "@/lib/api";
+import { BlockWrap } from "./BlockWrap";
+
+export interface InteractionBlockEditorProps {
+  courseId: string;
+  moduleId: string;
+  lessonId: string;
+  pageId: string;
+  block: InteractionBlockApiResponse;
+  onRefresh: () => void;
+  onDelete: () => void;
+  onRegenerate?: () => void;
+  regenerating?: boolean;
+  dragAttributes?: DraggableAttributes;
+  dragListeners?: SyntheticListenerMap;
+  isDragging?: boolean;
+  style?: React.CSSProperties;
+}
 
 export function InteractionBlockEditor({
   courseId,
@@ -12,15 +31,13 @@ export function InteractionBlockEditor({
   block,
   onRefresh,
   onDelete,
-}: {
-  courseId: string;
-  moduleId: string;
-  lessonId: string;
-  pageId: string;
-  block: InteractionBlockApiResponse;
-  onRefresh: () => void;
-  onDelete: () => void;
-}) {
+  onRegenerate,
+  regenerating,
+  dragAttributes,
+  dragListeners,
+  isDragging,
+  style,
+}: InteractionBlockEditorProps) {
   const [saving, setSaving] = useState(false);
 
   async function save(config: Record<string, unknown>) {
@@ -33,9 +50,23 @@ export function InteractionBlockEditor({
     }
   }
 
+  const wrapProps = {
+    blockId: block.id,
+    blockType: block.type,
+    variant: "interaction" as const,
+    saving,
+    regenerating,
+    onDelete,
+    onRegenerate,
+    dragAttributes,
+    dragListeners,
+    isDragging,
+    style,
+  };
+
   if (block.type === "multiple_choice") {
     return (
-      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+      <BlockWrap {...wrapProps}>
         <MultipleChoiceEditor
           config={block.config as { question?: string; options?: string[]; correctIndex?: number; explanation?: string }}
           onSave={(c) => save(c)}
@@ -45,7 +76,7 @@ export function InteractionBlockEditor({
   }
   if (block.type === "true_false") {
     return (
-      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+      <BlockWrap {...wrapProps}>
         <TrueFalseEditor
           config={block.config as { question?: string; correct?: boolean; explanation?: string }}
           onSave={(c) => save(c)}
@@ -55,7 +86,7 @@ export function InteractionBlockEditor({
   }
   if (block.type === "reflection") {
     return (
-      <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+      <BlockWrap {...wrapProps}>
         <ReflectionEditor
           config={block.config as { prompt?: string }}
           onSave={(c) => save(c)}
@@ -64,37 +95,9 @@ export function InteractionBlockEditor({
     );
   }
   return (
-    <BlockWrap block={block} onDelete={onDelete} saving={saving}>
+    <BlockWrap {...wrapProps}>
       <p className="text-sm text-gray-400">Unknown type: {block.type}</p>
     </BlockWrap>
-  );
-}
-
-function BlockWrap({
-  block,
-  onDelete,
-  saving,
-  children,
-}: {
-  block: InteractionBlockApiResponse;
-  onDelete: () => void;
-  saving: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="group relative rounded border border-amber-100 bg-amber-50/50 p-3">
-      <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
-        <button
-          type="button"
-          onClick={onDelete}
-          className="text-xs text-red-600 hover:underline"
-        >
-          Delete
-        </button>
-      </div>
-      {children}
-    </div>
   );
 }
 
@@ -121,6 +124,12 @@ function MultipleChoiceEditor({
     });
   };
 
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
   return (
     <div className="space-y-3">
       <label className="block text-xs font-medium text-gray-500">Question</label>
@@ -129,7 +138,8 @@ function MultipleChoiceEditor({
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
         onBlur={save}
-        className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+        onKeyDown={handleKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="Question text…"
       />
       <label className="block text-xs font-medium text-gray-500">Options (select correct)</label>
@@ -154,7 +164,8 @@ function MultipleChoiceEditor({
               setOptions(next);
             }}
             onBlur={save}
-            className="flex-1 rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+            onKeyDown={handleKeyDown}
+            className="flex-1 rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             placeholder={`Option ${i + 1}`}
           />
           {options.length > 2 && (
@@ -194,7 +205,8 @@ function MultipleChoiceEditor({
           value={explanation}
           onChange={(e) => setExplanation(e.target.value)}
           onBlur={save}
-          className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+          onKeyDown={handleKeyDown}
+          className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           placeholder="Shown after answer"
         />
       </div>
@@ -215,6 +227,12 @@ function TrueFalseEditor({
 
   const save = () => onSave({ question, correct, explanation: explanation.trim() || undefined });
 
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
   return (
     <div className="space-y-3">
       <label className="block text-xs font-medium text-gray-500">Question</label>
@@ -223,7 +241,8 @@ function TrueFalseEditor({
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
         onBlur={save}
-        className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+        onKeyDown={handleKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="True or false statement…"
       />
       <div className="flex items-center gap-4">
@@ -257,7 +276,8 @@ function TrueFalseEditor({
           value={explanation}
           onChange={(e) => setExplanation(e.target.value)}
           onBlur={save}
-          className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+          onKeyDown={handleKeyDown}
+          className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           placeholder="Shown after answer"
         />
       </div>
@@ -273,6 +293,13 @@ function ReflectionEditor({
   onSave: (c: Record<string, unknown>) => void;
 }) {
   const [prompt, setPrompt] = useState(config.prompt ?? "");
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
   return (
     <div>
       <label className="block text-xs font-medium text-gray-500">Reflection prompt (non-graded)</label>
@@ -280,8 +307,9 @@ function ReflectionEditor({
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         onBlur={() => onSave({ prompt })}
+        onKeyDown={handleKeyDown}
         rows={2}
-        className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="e.g. What did you find most useful?"
       />
     </div>
