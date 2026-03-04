@@ -8,6 +8,81 @@ import {
 } from "./render-page-html";
 import type { BrandConfig } from "@/types/branding";
 
+interface ImageMapping {
+  originalUrl: string;
+  localPath: string;
+}
+
+async function fetchAndBundleImage(
+  url: string,
+  index: number,
+  contentFolder: JSZip
+): Promise<ImageMapping | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) return null;
+
+    const buf = Buffer.from(await res.arrayBuffer());
+    const contentType = res.headers.get("content-type") || "";
+    let ext = "png";
+    if (contentType.includes("jpeg") || contentType.includes("jpg") || url.match(/\.jpe?g/i)) {
+      ext = "jpg";
+    } else if (contentType.includes("gif") || url.match(/\.gif/i)) {
+      ext = "gif";
+    } else if (contentType.includes("webp") || url.match(/\.webp/i)) {
+      ext = "webp";
+    } else if (contentType.includes("svg") || url.match(/\.svg/i)) {
+      ext = "svg";
+    }
+
+    const filename = `img_${index}.${ext}`;
+    contentFolder.file(filename, buf);
+
+    return { originalUrl: url, localPath: filename };
+  } catch {
+    return null;
+  }
+}
+
+function collectImageUrls(course: CourseForExport): string[] {
+  const urls = new Set<string>();
+
+  for (const mod of course.modules ?? []) {
+    for (const lesson of mod.lessons ?? []) {
+      for (const page of lesson.pages ?? []) {
+        for (const block of page.contentBlocks ?? []) {
+          if (block.type === "image") {
+            const url = block.content?.url;
+            if (typeof url === "string" && url.trim()) {
+              urls.add(url.trim());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return Array.from(urls);
+}
+
+function rewriteImageUrls(
+  contentBlocks: { id: string; type: string; content: Record<string, unknown>; order: number }[],
+  urlMap: Map<string, string>
+): { id: string; type: string; content: Record<string, unknown>; order: number }[] {
+  return contentBlocks.map((block) => {
+    if (block.type === "image" && typeof block.content?.url === "string") {
+      const localPath = urlMap.get(block.content.url);
+      if (localPath) {
+        return {
+          ...block,
+          content: { ...block.content, url: localPath },
+        };
+      }
+    }
+    return block;
+  });
+}
+
 function getGradingKey(block: { id: string; type: string; config: Record<string, unknown> }): GradingKey | null {
   if (block.type === "multiple_choice") {
     const correctIndex = Number((block.config as { correctIndex?: number }).correctIndex ?? 0);
@@ -96,6 +171,19 @@ export async function buildScorm12Zip(course: CourseForExport): Promise<Buffer> 
     }
   }
 
+  const imageUrls = collectImageUrls(course);
+  const imageUrlMap = new Map<string, string>();
+
+  const imageResults = await Promise.all(
+    imageUrls.map((url, idx) => fetchAndBundleImage(url, idx, contentFolder))
+  );
+
+  for (const result of imageResults) {
+    if (result) {
+      imageUrlMap.set(result.originalUrl, result.localPath);
+    }
+  }
+
   let totalScoreMax = 0;
   for (const { page } of pages) {
     for (const block of page.interactionBlocks ?? []) {
@@ -130,9 +218,10 @@ export async function buildScorm12Zip(course: CourseForExport): Promise<Buffer> 
           totalScoreMax: Math.max(1, totalScoreMax),
           gradingKeysByBlockId,
         };
+        const rewrittenContentBlocks = rewriteImageUrls(page.contentBlocks, imageUrlMap);
         const html = renderPageHtml({
           pageTitle: page.title,
-          contentBlocks: page.contentBlocks,
+          contentBlocks: rewrittenContentBlocks,
           interactionBlocks: page.interactionBlocks,
           courseTitle: course.title,
           prevHref,

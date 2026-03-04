@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 interface CourseSettings {
   apiKeys?: {
     openai?: string;
+    gemini?: string;
   };
 }
 
@@ -27,6 +28,8 @@ export default function SettingsPage() {
   const [ilos, setIlos] = useState<string[]>([]);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [newApiKey, setNewApiKey] = useState("");
+  const [hasGeminiKey, setHasGeminiKey] = useState(false);
+  const [newGeminiKey, setNewGeminiKey] = useState("");
 
   const loadCourse = useCallback(async () => {
     setError(null);
@@ -46,6 +49,7 @@ export default function SettingsPage() {
       setIlos(Array.isArray(data.ilos) ? data.ilos : []);
       const settings = data.settings as CourseSettings | null;
       setHasApiKey(Boolean(settings?.apiKeys?.openai));
+      setHasGeminiKey(Boolean(settings?.apiKeys?.gemini));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -71,8 +75,15 @@ export default function SettingsPage() {
         complianceLevel: complianceLevel.trim() || null,
         ilos: ilos.filter(Boolean),
       };
+      const apiKeys: Record<string, string> = {};
       if (newApiKey.trim()) {
-        payload.settings = { apiKeys: { openai: newApiKey.trim() } };
+        apiKeys.openai = newApiKey.trim();
+      }
+      if (newGeminiKey.trim()) {
+        apiKeys.gemini = newGeminiKey.trim();
+      }
+      if (Object.keys(apiKeys).length > 0) {
+        payload.settings = { apiKeys };
       }
       const res = await fetch(`/api/courses/${courseId}`, {
         method: "PATCH",
@@ -87,6 +98,10 @@ export default function SettingsPage() {
         setHasApiKey(true);
         setNewApiKey("");
       }
+      if (newGeminiKey.trim()) {
+        setHasGeminiKey(true);
+        setNewGeminiKey("");
+      }
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (e) {
@@ -96,21 +111,28 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleClearApiKey() {
-    if (!confirm("Remove the stored OpenAI API key?")) return;
+  async function handleClearApiKey(keyType: "openai" | "gemini") {
+    const keyName = keyType === "openai" ? "OpenAI" : "Gemini";
+    if (!confirm(`Remove the stored ${keyName} API key?`)) return;
     setSaving(true);
     setError(null);
     try {
+      const apiKeys: Record<string, string | null> = {};
+      apiKeys[keyType] = null;
       const res = await fetch(`/api/courses/${courseId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings: { apiKeys: {} } }),
+        body: JSON.stringify({ settings: { apiKeys } }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error((data as { error?: string }).error || "Failed to clear key");
       }
-      setHasApiKey(false);
+      if (keyType === "openai") {
+        setHasApiKey(false);
+      } else {
+        setHasGeminiKey(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to clear key");
     } finally {
@@ -280,38 +302,76 @@ export default function SettingsPage() {
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">API keys (bring your own)</h2>
           <p className="text-sm text-gray-500">
-            Optionally provide your own OpenAI API key for AI generation.
+            Optionally provide your own API keys for AI generation.
           </p>
-          {hasApiKey ? (
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-green-700">OpenAI key configured</span>
-              <button
-                type="button"
-                onClick={handleClearApiKey}
-                disabled={saving}
-                className="text-sm text-red-600 hover:underline disabled:opacity-50"
-              >
-                Remove
-              </button>
-            </div>
-          ) : (
-            <div>
-              <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700">
-                OpenAI API key
-              </label>
-              <input
-                id="apiKey"
-                type="password"
-                value={newApiKey}
-                onChange={(e) => setNewApiKey(e.target.value)}
-                placeholder="sk-…"
-                className="mt-1 w-full rounded border border-gray-300 px-3 py-2"
-              />
-              <p className="mt-1 text-xs text-gray-400">
-                Stored securely. Leave blank to use the default key.
-              </p>
-            </div>
-          )}
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-gray-900">OpenAI (content generation)</h3>
+            {hasApiKey ? (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-green-700">OpenAI key configured</span>
+                <button
+                  type="button"
+                  onClick={() => handleClearApiKey("openai")}
+                  disabled={saving}
+                  className="text-sm text-red-600 hover:underline disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700">
+                  OpenAI API key
+                </label>
+                <input
+                  id="apiKey"
+                  type="password"
+                  value={newApiKey}
+                  onChange={(e) => setNewApiKey(e.target.value)}
+                  placeholder="sk-…"
+                  className="mt-1 w-full rounded border border-gray-300 px-3 py-2"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Stored securely. Leave blank to use the default key.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4 pt-4 border-t border-gray-200">
+            <h3 className="text-sm font-medium text-gray-900">Google Gemini (AI image generation)</h3>
+            {hasGeminiKey ? (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-green-700">Gemini key configured</span>
+                <button
+                  type="button"
+                  onClick={() => handleClearApiKey("gemini")}
+                  disabled={saving}
+                  className="text-sm text-red-600 hover:underline disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="geminiKey" className="block text-sm font-medium text-gray-700">
+                  Gemini API key
+                </label>
+                <input
+                  id="geminiKey"
+                  type="password"
+                  value={newGeminiKey}
+                  onChange={(e) => setNewGeminiKey(e.target.value)}
+                  placeholder="Enter Gemini API key"
+                  className="mt-1 w-full rounded border border-gray-300 px-3 py-2"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Used for AI image generation with Nano Banana 2. Leave blank to use the default key.
+                </p>
+              </div>
+            )}
+          </div>
         </section>
 
         <div className="pt-4">

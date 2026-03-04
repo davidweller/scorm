@@ -6,6 +6,8 @@ import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import type { ContentBlockApiResponse } from "@/lib/api";
 import { updateContentBlock } from "@/lib/api";
 import { BlockWrap } from "./BlockWrap";
+import MediaPickerModal from "@/components/media/MediaPickerModal";
+import type { Media } from "@/types/media";
 
 export interface ContentBlockEditorProps {
   courseId: string;
@@ -221,6 +223,7 @@ function ImageBlockEditor({
 }) {
   const [url, setUrl] = useState(content.url ?? "");
   const [alt, setAlt] = useState(content.alt ?? "");
+  const [showPicker, setShowPicker] = useState(false);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") {
@@ -228,17 +231,32 @@ function ImageBlockEditor({
     }
   }
 
+  function handleMediaSelect(media: Media) {
+    setUrl(media.url);
+    if (media.alt) setAlt(media.alt);
+    onSave({ url: media.url, alt: media.alt || alt });
+  }
+
   return (
     <div className="space-y-2">
-      <input
-        type="url"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        onBlur={() => onSave({ url, alt })}
-        onKeyDown={handleKeyDown}
-        className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        placeholder="Image URL"
-      />
+      <div className="flex gap-2">
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onBlur={() => onSave({ url, alt })}
+          onKeyDown={handleKeyDown}
+          className="flex-1 rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="Image URL"
+        />
+        <button
+          type="button"
+          onClick={() => setShowPicker(true)}
+          className="shrink-0 rounded bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-600 hover:bg-indigo-100 transition-colors"
+        >
+          Browse
+        </button>
+      </div>
       <input
         type="text"
         value={alt}
@@ -252,6 +270,11 @@ function ImageBlockEditor({
         // eslint-disable-next-line @next/next/no-img-element -- user-provided URL, preview only
         <img src={url} alt={alt || "Preview"} className="max-h-40 rounded object-contain" />
       )}
+      <MediaPickerModal
+        isOpen={showPicker}
+        onClose={() => setShowPicker(false)}
+        onSelect={handleMediaSelect}
+      />
     </div>
   );
 }
