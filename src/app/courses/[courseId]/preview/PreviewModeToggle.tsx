@@ -1,17 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type Mode = "learner" | "lms";
 
 export function PreviewModeToggle({
   iframeSrc,
   noContent,
+  courseId,
 }: {
   iframeSrc: string;
   noContent: boolean;
+  courseId: string;
 }) {
   const [mode, setMode] = useState<Mode>("learner");
+
+  useEffect(() => {
+    if (!noContent) {
+      fetch(`/api/courses/${courseId}/preview/mark-viewed`, { method: "POST" });
+    }
+  }, [courseId, noContent]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">

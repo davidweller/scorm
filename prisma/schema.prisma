@@ -22,6 +22,8 @@ model Course {
   settings         Json?    // e.g. { apiKeys: { openai?: string } } for BYO keys
   ilos             Json?    // string[] learning outcomes
   assessmentPlan   Json?    // string or { summary, placements } for blueprint
+  lastPreviewedAt  DateTime?
+  lastExportedAt   DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   modules         Module[]

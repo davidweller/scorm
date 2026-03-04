@@ -57,7 +57,7 @@ export default async function PreviewPage({
           </Link>
         </div>
       ) : (
-        <PreviewModeToggle iframeSrc={iframeSrc} noContent={noContent} />
+        <PreviewModeToggle iframeSrc={iframeSrc} noContent={noContent} courseId={courseId} />
       )}
     </main>
   );
