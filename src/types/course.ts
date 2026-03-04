@@ -7,7 +7,13 @@ export type ContentBlockType =
   | "video_embed"
   | "key_insight"
   | "key_point";
-export type InteractionBlockType = "multiple_choice" | "true_false" | "reflection";
+export type InteractionBlockType =
+  | "multiple_choice"
+  | "true_false"
+  | "reflection"
+  | "drag_and_drop"
+  | "matching"
+  | "dialog_cards";
 
 export interface ContentBlockData {
   id: string;
@@ -21,7 +27,13 @@ export interface InteractionBlockData {
   id: string;
   pageId: string;
   type: InteractionBlockType;
-  config: MultipleChoiceConfig | TrueFalseConfig | ReflectionConfig;
+  config:
+    | MultipleChoiceConfig
+    | TrueFalseConfig
+    | ReflectionConfig
+    | DragAndDropConfig
+    | MatchingConfig
+    | DialogCardsConfig;
   order: number;
 }
 
@@ -40,6 +52,39 @@ export interface TrueFalseConfig {
 
 export interface ReflectionConfig {
   prompt: string;
+}
+
+export interface DragAndDropConfig {
+  question: string;
+  items: string[];
+  correctOrder: number[];
+  explanation?: string;
+}
+
+export interface MatchingConfig {
+  question: string;
+  pairs: { left: string; right: string }[];
+  explanation?: string;
+}
+
+export interface DialogCardsConfig {
+  title?: string;
+  cards: { front: string; back: string }[];
+}
+
+export type InteractionDensity = "light" | "moderate" | "heavy";
+
+export interface InteractionPlacement {
+  withinLessons: boolean;
+  endOfModule: boolean;
+  finalAssessment: boolean;
+}
+
+export interface InteractionConfig {
+  enabledTypes: InteractionBlockType[];
+  density: InteractionDensity;
+  placement: InteractionPlacement;
+  includeExplanations: boolean;
 }
 
 export interface PageData {

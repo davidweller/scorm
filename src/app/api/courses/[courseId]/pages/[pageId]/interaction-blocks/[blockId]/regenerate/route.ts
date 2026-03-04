@@ -41,7 +41,7 @@ export async function POST(
       return NextResponse.json({ error: "Block not found" }, { status: 404 });
     }
 
-    const regenerableTypes = ["multiple_choice", "true_false", "reflection"];
+    const regenerableTypes = ["multiple_choice", "true_false", "reflection", "drag_and_drop", "matching", "dialog_cards"];
     if (!regenerableTypes.includes(block.type)) {
       return NextResponse.json(
         { error: `Cannot regenerate interaction type: ${block.type}` },

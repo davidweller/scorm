@@ -76,6 +76,12 @@ function getTypeLabel(type: string): string {
       return "True / False";
     case "reflection":
       return "Reflection";
+    case "drag_and_drop":
+      return "Drag & Drop";
+    case "matching":
+      return "Matching";
+    case "dialog_cards":
+      return "Dialog Cards";
     default:
       return type;
   }
@@ -89,6 +95,12 @@ function getTypeBadgeClass(type: string): string {
       return "bg-green-100 text-green-800";
     case "reflection":
       return "bg-purple-100 text-purple-800";
+    case "drag_and_drop":
+      return "bg-orange-100 text-orange-800";
+    case "matching":
+      return "bg-teal-100 text-teal-800";
+    case "dialog_cards":
+      return "bg-pink-100 text-pink-800";
     default:
       return "bg-gray-100 text-gray-800";
   }

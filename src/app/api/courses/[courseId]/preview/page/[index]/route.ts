@@ -21,6 +21,14 @@ function getGradingKey(block: {
     const correct = (block.config as { correct?: boolean }).correct !== false;
     return { blockId: block.id, type: "true_false", correct };
   }
+  if (block.type === "drag_and_drop") {
+    const correctOrder = (block.config as { correctOrder?: number[] }).correctOrder ?? [];
+    return { blockId: block.id, type: "drag_and_drop", correctOrder };
+  }
+  if (block.type === "matching") {
+    const pairs = (block.config as { pairs?: { left: string; right: string }[] }).pairs ?? [];
+    return { blockId: block.id, type: "matching", pairCount: pairs.length };
+  }
   return null;
 }
 
@@ -79,7 +87,14 @@ export async function GET(
   let totalScoreMax = 0;
   for (const { page: p } of flat) {
     for (const block of p.interactionBlocks ?? []) {
-      if (block.type === "multiple_choice" || block.type === "true_false") totalScoreMax += 1;
+      if (
+        block.type === "multiple_choice" ||
+        block.type === "true_false" ||
+        block.type === "drag_and_drop" ||
+        block.type === "matching"
+      ) {
+        totalScoreMax += 1;
+      }
     }
   }
 

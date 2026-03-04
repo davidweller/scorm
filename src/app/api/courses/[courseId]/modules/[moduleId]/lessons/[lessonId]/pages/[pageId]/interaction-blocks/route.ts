@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
-const VALID_TYPES = ["multiple_choice", "true_false", "reflection"] as const;
+const VALID_TYPES = ["multiple_choice", "true_false", "reflection", "drag_and_drop", "matching", "dialog_cards"] as const;
 
 export async function POST(
   request: Request,

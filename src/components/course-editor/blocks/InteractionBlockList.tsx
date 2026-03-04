@@ -164,16 +164,39 @@ export function InteractionBlockList({
     }
   }
 
-  async function addBlock(type: "multiple_choice" | "true_false" | "reflection") {
+  async function addBlock(
+    type:
+      | "multiple_choice"
+      | "true_false"
+      | "reflection"
+      | "drag_and_drop"
+      | "matching"
+      | "dialog_cards"
+  ) {
     setError(null);
     setAdding(true);
     try {
-      const config =
-        type === "multiple_choice"
-          ? { question: "", options: ["", ""], correctIndex: 0 }
-          : type === "true_false"
-            ? { question: "", correct: true }
-            : { prompt: "" };
+      let config: Record<string, unknown>;
+      switch (type) {
+        case "multiple_choice":
+          config = { question: "", options: ["", ""], correctIndex: 0 };
+          break;
+        case "true_false":
+          config = { question: "", correct: true };
+          break;
+        case "reflection":
+          config = { prompt: "" };
+          break;
+        case "drag_and_drop":
+          config = { question: "", items: ["", ""], correctOrder: [0, 1] };
+          break;
+        case "matching":
+          config = { question: "", pairs: [{ left: "", right: "" }, { left: "", right: "" }] };
+          break;
+        case "dialog_cards":
+          config = { title: "", cards: [{ front: "", back: "" }] };
+          break;
+      }
       await createInteractionBlock(courseId, moduleId, lessonId, pageId, {
         type,
         config,
@@ -235,11 +258,35 @@ export function InteractionBlockList({
         </button>
         <button
           type="button"
+          onClick={() => addBlock("drag_and_drop")}
+          disabled={adding}
+          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          + Drag &amp; Drop
+        </button>
+        <button
+          type="button"
+          onClick={() => addBlock("matching")}
+          disabled={adding}
+          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          + Matching
+        </button>
+        <button
+          type="button"
           onClick={() => addBlock("reflection")}
           disabled={adding}
           className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
         >
           + Reflection
+        </button>
+        <button
+          type="button"
+          onClick={() => addBlock("dialog_cards")}
+          disabled={adding}
+          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          + Dialog Cards
         </button>
       </div>
     </div>

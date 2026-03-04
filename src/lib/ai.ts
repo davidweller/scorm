@@ -157,7 +157,13 @@ export interface GeneratedContentBlock {
 }
 
 export interface GeneratedInteractionBlock {
-  type: "reflection" | "multiple_choice" | "true_false";
+  type:
+    | "reflection"
+    | "multiple_choice"
+    | "true_false"
+    | "drag_and_drop"
+    | "matching"
+    | "dialog_cards";
   config: Record<string, unknown>;
 }
 
@@ -229,7 +235,14 @@ export interface InteractionGenerationContext {
 }
 
 export interface InteractionGenerationOptions {
-  types: ("reflection" | "multiple_choice" | "true_false")[];
+  types: (
+    | "reflection"
+    | "multiple_choice"
+    | "true_false"
+    | "drag_and_drop"
+    | "matching"
+    | "dialog_cards"
+  )[];
   count: number;
   includeExplanations: boolean;
 }
@@ -245,6 +258,9 @@ export async function generateInteractions(
       if (t === "reflection") return '"reflection" with "prompt" (open-ended question for learner to reflect on)';
       if (t === "multiple_choice") return '"multiple_choice" with "question", "options" (array of 4 strings), "correctIndex" (0-based)' + (options.includeExplanations ? ', "explanation"' : '');
       if (t === "true_false") return '"true_false" with "question", "correct" (boolean)' + (options.includeExplanations ? ', "explanation"' : '');
+      if (t === "drag_and_drop") return '"drag_and_drop" with "question", "items" (array of 4-6 strings to put in order), "correctOrder" (array of indices representing the correct sequence, e.g. [2,0,3,1] means item at index 2 goes first)' + (options.includeExplanations ? ', "explanation"' : '');
+      if (t === "matching") return '"matching" with "question", "pairs" (array of 4-6 objects with "left" and "right" strings to match)' + (options.includeExplanations ? ', "explanation"' : '');
+      if (t === "dialog_cards") return '"dialog_cards" with optional "title", "cards" (array of 3-5 objects with "front" and "back" strings for flip cards)';
       return t;
     })
     .join("; ");
@@ -269,6 +285,9 @@ Requirements:
 - For multiple choice, ensure distractors are plausible but clearly wrong
 - For true/false, avoid trick questions
 - For reflections, prompt deeper thinking about application
+- For drag and drop, create items that have a clear logical sequence (chronological, procedural, or ranked)
+- For matching, create pairs with distinct, unambiguous relationships
+- For dialog cards, create concise front prompts with informative back content for review
 ${options.includeExplanations ? "- Include brief explanations for why answers are correct/incorrect" : ""}
 
 Respond with a JSON object:
@@ -292,8 +311,8 @@ Respond with a JSON object:
   if (!Array.isArray(parsed.interactionBlocks)) parsed.interactionBlocks = [];
   
   const validTypes = new Set(options.types);
-  parsed.interactionBlocks = parsed.interactionBlocks.filter(
-    (b) => validTypes.has(b.type as "reflection" | "multiple_choice" | "true_false")
+  parsed.interactionBlocks = parsed.interactionBlocks.filter((b) =>
+    validTypes.has(b.type as InteractionGenerationOptions["types"][number])
   );
   
   return parsed;
@@ -387,6 +406,18 @@ Create a clear statement that can be evaluated as true or false. Avoid trick que
     typeInstruction = `Generate a "reflection" interaction with:
 { "prompt": "open-ended question" }
 Create a thought-provoking question that encourages learners to apply or reflect on the lesson content.`;
+  } else if (blockType === "drag_and_drop") {
+    typeInstruction = `Generate a "drag_and_drop" interaction with:
+{ "question": "...", "items": ["item1", "item2", "item3", "item4"], "correctOrder": [0, 1, 2, 3]${includeExplanation ? ', "explanation": "..."' : ""} }
+Create 4-6 items that have a clear logical sequence (chronological, procedural, or ranked). The correctOrder array indicates which item index should be in each position.`;
+  } else if (blockType === "matching") {
+    typeInstruction = `Generate a "matching" interaction with:
+{ "question": "...", "pairs": [{"left": "term1", "right": "definition1"}, ...]${includeExplanation ? ', "explanation": "..."' : ""} }
+Create 4-6 pairs with distinct, unambiguous relationships. Each left item should match exactly one right item.`;
+  } else if (blockType === "dialog_cards") {
+    typeInstruction = `Generate a "dialog_cards" interaction with:
+{ "title": "optional title", "cards": [{"front": "prompt or term", "back": "explanation or definition"}, ...] }
+Create 3-5 flip cards for review. Front should be concise, back should provide informative content.`;
   } else {
     throw new Error(`Cannot regenerate interaction type: ${blockType}`);
   }
