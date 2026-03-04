@@ -2,11 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBaseUrl } from "@/lib/base-url";
 
-interface InteractionBlock {
+interface Block {
   id: string;
   pageId: string;
+  category: "content" | "interaction";
   type: string;
-  config: {
+  data: {
     question?: string;
     prompt?: string;
     options?: string[];
@@ -19,7 +20,7 @@ interface InteractionBlock {
 interface Page {
   id: string;
   title: string;
-  interactionBlocks: InteractionBlock[];
+  blocks: Block[];
 }
 
 interface Lesson {
@@ -41,7 +42,7 @@ interface Course {
 }
 
 interface FlattenedInteraction {
-  block: InteractionBlock;
+  block: Block;
   page: Page;
   lesson: Lesson;
   module: Module;
@@ -59,8 +60,10 @@ function flattenInteractions(course: Course): FlattenedInteraction[] {
   for (const mod of course.modules ?? []) {
     for (const lesson of mod.lessons ?? []) {
       for (const page of lesson.pages ?? []) {
-        for (const block of page.interactionBlocks ?? []) {
-          result.push({ block, page, lesson, module: mod });
+        for (const block of page.blocks ?? []) {
+          if (block.category === "interaction") {
+            result.push({ block, page, lesson, module: mod });
+          }
         }
       }
     }
@@ -161,7 +164,7 @@ export default async function InteractionsPage({
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {interactions.map(({ block, page, lesson, module }) => {
-                  const questionText = block.config.question ?? block.config.prompt ?? "—";
+                  const questionText = block.data.question ?? block.data.prompt ?? "—";
                   const truncated = questionText.length > 80 ? questionText.slice(0, 80) + "…" : questionText;
                   return (
                     <tr key={block.id} className="hover:bg-gray-50">

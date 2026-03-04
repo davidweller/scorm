@@ -8,7 +8,8 @@ import { getFlowCompletion } from "@/lib/course-tree";
 
 const STEPS = [
   { key: "blueprint", label: "Blueprint", path: "blueprint" },
-  { key: "generate", label: "Generate", path: "generate" },
+  { key: "generate", label: "Lessons", path: "generate" },
+  { key: "interactions", label: "Interactions", path: "generate-interactions" },
   { key: "review", label: "Review", path: "review" },
   { key: "preview", label: "Preview", path: "preview" },
   { key: "export", label: "Export", path: "export" },
@@ -49,13 +50,14 @@ export function CourseFlowStepper({ courseId }: { courseId: string }) {
 
   const getStepStatus = (step: (typeof STEPS)[number], index: number) => {
     const isCurrentStep = currentSegment === step.path;
-    const completed = flow ? flow[step.key] : false;
+    const completed = flow ? flow[step.key as keyof typeof flow] : false;
     const canReach = flow
       ? (step.key === "blueprint" && true) ||
         (step.key === "generate" && flow.blueprint) ||
-        (step.key === "review" && flow.generate) ||
-        (step.key === "preview" && flow.generate) ||
-        (step.key === "export" && flow.generate)
+        (step.key === "interactions" && flow.generate) ||
+        (step.key === "review" && flow.interactions) ||
+        (step.key === "preview" && flow.interactions) ||
+        (step.key === "export" && flow.interactions)
       : true;
     return { isCurrentStep, completed, canReach };
   };

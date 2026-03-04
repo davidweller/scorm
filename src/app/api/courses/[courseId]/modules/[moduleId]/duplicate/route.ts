@@ -16,8 +16,7 @@ export async function POST(
             pages: {
               orderBy: { order: "asc" },
               include: {
-                contentBlocks: { orderBy: { order: "asc" } },
-                interactionBlocks: { orderBy: { order: "asc" } },
+                blocks: { orderBy: { order: "asc" } },
               },
             },
           },
@@ -58,22 +57,13 @@ export async function POST(
             completionRules: page.completionRules ?? undefined,
           },
         });
-        for (const block of page.contentBlocks) {
-          await prisma.contentBlock.create({
+        for (const block of page.blocks) {
+          await prisma.block.create({
             data: {
               pageId: newPage.id,
+              category: block.category,
               type: block.type,
-              content: block.content as object,
-              order: block.order,
-            },
-          });
-        }
-        for (const block of page.interactionBlocks) {
-          await prisma.interactionBlock.create({
-            data: {
-              pageId: newPage.id,
-              type: block.type,
-              config: block.config as object,
+              data: block.data as object,
               order: block.order,
             },
           });

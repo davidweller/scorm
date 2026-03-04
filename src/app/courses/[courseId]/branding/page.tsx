@@ -42,6 +42,7 @@ export default function BrandingPage() {
   const [secondary, setSecondary] = useState(DEFAULT_BRAND_CONFIG.secondary ?? "");
   const [accent, setAccent] = useState(DEFAULT_BRAND_CONFIG.accent ?? "");
   const [background, setBackground] = useState(DEFAULT_BRAND_CONFIG.background ?? "");
+  const [contentBg, setContentBg] = useState(DEFAULT_BRAND_CONFIG.contentBg ?? "");
   const [headingFont, setHeadingFont] = useState(DEFAULT_BRAND_CONFIG.headingFont ?? "");
   const [bodyFont, setBodyFont] = useState(DEFAULT_BRAND_CONFIG.bodyFont ?? "");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -62,6 +63,7 @@ export default function BrandingPage() {
       setSecondary(brand.secondary ?? DEFAULT_BRAND_CONFIG.secondary ?? "");
       setAccent(brand.accent ?? DEFAULT_BRAND_CONFIG.accent ?? "");
       setBackground(brand.background ?? DEFAULT_BRAND_CONFIG.background ?? "");
+      setContentBg(brand.contentBg ?? DEFAULT_BRAND_CONFIG.contentBg ?? "");
       setHeadingFont(brand.headingFont ?? DEFAULT_BRAND_CONFIG.headingFont ?? "");
       setBodyFont(brand.bodyFont ?? brand.font ?? DEFAULT_BRAND_CONFIG.bodyFont ?? "");
       setLogoUrl(brand.logoUrl ?? null);
@@ -127,6 +129,7 @@ export default function BrandingPage() {
         ctaFill: accent,
         ctaText: DEFAULT_BRAND_CONFIG.ctaText,
         background,
+        contentBg,
         cardBg: DEFAULT_BRAND_CONFIG.cardBg,
         linkColor: primary,
         headingFont,
@@ -242,7 +245,7 @@ export default function BrandingPage() {
             </div>
             <div>
               <label htmlFor="background" className="block text-sm font-medium text-gray-700">
-                Background
+                Page Background
               </label>
               <div className="mt-1 flex items-center gap-2">
                 <input
@@ -256,6 +259,26 @@ export default function BrandingPage() {
                   type="text"
                   value={background}
                   onChange={(e) => setBackground(e.target.value)}
+                  className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="contentBg" className="block text-sm font-medium text-gray-700">
+                Content Background
+              </label>
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  id="contentBg"
+                  type="color"
+                  value={contentBg}
+                  onChange={(e) => setContentBg(e.target.value)}
+                  className="h-10 w-14 cursor-pointer rounded border border-gray-300"
+                />
+                <input
+                  type="text"
+                  value={contentBg}
+                  onChange={(e) => setContentBg(e.target.value)}
                   className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
                 />
               </div>
@@ -351,31 +374,36 @@ export default function BrandingPage() {
           >
             Preview
           </h2>
-          <p className="mt-2 text-sm" style={{ fontFamily: bodyFont }}>
-            This is sample body text using your selected body font.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              className="rounded px-3 py-1.5 text-sm font-medium"
-              style={{ backgroundColor: primary, color: "#fff" }}
-            >
-              Primary
-            </button>
-            <button
-              type="button"
-              className="rounded border-2 px-3 py-1.5 text-sm font-medium"
-              style={{ borderColor: secondary, color: secondary, backgroundColor: background }}
-            >
-              Secondary
-            </button>
-            <button
-              type="button"
-              className="rounded px-3 py-1.5 text-sm font-medium"
-              style={{ backgroundColor: accent, color: "#1b0101" }}
-            >
-              Accent
-            </button>
+          <div
+            className="mt-3 rounded-b-lg p-4"
+            style={{ backgroundColor: contentBg, borderTop: `4px solid ${accent}` }}
+          >
+            <p className="text-sm" style={{ fontFamily: bodyFont }}>
+              This is sample body text using your selected body font, displayed on the content background.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                className="rounded px-3 py-1.5 text-sm font-medium"
+                style={{ backgroundColor: primary, color: "#fff" }}
+              >
+                Primary
+              </button>
+              <button
+                type="button"
+                className="rounded border-2 px-3 py-1.5 text-sm font-medium"
+                style={{ borderColor: secondary, color: secondary, backgroundColor: background }}
+              >
+                Secondary
+              </button>
+              <button
+                type="button"
+                className="rounded px-3 py-1.5 text-sm font-medium"
+                style={{ backgroundColor: accent, color: "#1b0101" }}
+              >
+                Accent
+              </button>
+            </div>
           </div>
         </section>
 

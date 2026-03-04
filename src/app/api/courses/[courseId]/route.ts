@@ -20,8 +20,7 @@ export async function GET(
                 pages: {
                   orderBy: { order: "asc" },
                   include: {
-                    contentBlocks: { orderBy: { order: "asc" } },
-                    interactionBlocks: { orderBy: { order: "asc" } },
+                    blocks: { orderBy: { order: "asc" } },
                   },
                 },
               },

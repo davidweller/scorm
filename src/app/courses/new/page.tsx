@@ -17,6 +17,7 @@ export default function NewCoursePage() {
   const [secondaryColor, setSecondaryColor] = useState(DEFAULT_BRAND_CONFIG.secondary ?? "");
   const [accentColor, setAccentColor] = useState(DEFAULT_BRAND_CONFIG.accent ?? "");
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_BRAND_CONFIG.background ?? "");
+  const [contentBgColor, setContentBgColor] = useState(DEFAULT_BRAND_CONFIG.contentBg ?? "");
   const [font, setFont] = useState(DEFAULT_BRAND_CONFIG.bodyFont ?? DEFAULT_BRAND_CONFIG.font ?? "");
   const [headingFont, setHeadingFont] = useState(DEFAULT_BRAND_CONFIG.headingFont ?? "");
   const [openaiKey, setOpenaiKey] = useState("");
@@ -36,6 +37,7 @@ export default function NewCoursePage() {
         ...(secondaryColor && { secondary: secondaryColor }),
         ...(accentColor && { accent: accentColor, ctaFill: accentColor }),
         ...(backgroundColor && { background: backgroundColor, secondaryButtonBg: backgroundColor }),
+        ...(contentBgColor && { contentBg: contentBgColor }),
         ...(font.trim() && { font: font.trim(), bodyFont: font.trim() }),
         ...(headingFont.trim() && { headingFont: headingFont.trim() }),
       };
@@ -215,12 +217,22 @@ export default function NewCoursePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500">Background</label>
+                  <label className="block text-xs text-gray-500">Page Background</label>
                   <input
                     type="text"
                     value={backgroundColor}
                     onChange={(e) => setBackgroundColor(e.target.value)}
-                    placeholder="#f8f8f8"
+                    placeholder="#ffffff"
+                    className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500">Content Background</label>
+                  <input
+                    type="text"
+                    value={contentBgColor}
+                    onChange={(e) => setContentBgColor(e.target.value)}
+                    placeholder="#f7f8fa"
                     className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
                   />
                 </div>

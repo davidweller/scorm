@@ -75,21 +75,19 @@ export async function generatePagesForLesson(courseId: string, lessonId: string)
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.contentBlock.deleteMany({ where: { pageId: page!.id } });
-    await tx.interactionBlock.deleteMany({ where: { pageId: page!.id } });
+    await tx.block.deleteMany({ where: { pageId: page!.id, category: "content" } });
 
     for (let i = 0; i < generated.contentBlocks.length; i++) {
       const b = generated.contentBlocks[i];
       if (b.type !== "text" && b.type !== "heading") continue;
-      await tx.contentBlock.create({
-        data: { pageId: page!.id, type: b.type, content: b.content ?? {}, order: i },
-      });
-    }
-    for (let i = 0; i < generated.interactionBlocks.length; i++) {
-      const b = generated.interactionBlocks[i];
-      if (!["reflection", "multiple_choice", "true_false"].includes(b.type)) continue;
-      await tx.interactionBlock.create({
-        data: { pageId: page!.id, type: b.type, config: (b.config ?? {}) as Prisma.InputJsonValue, order: i },
+      await tx.block.create({
+        data: { 
+          pageId: page!.id, 
+          category: "content",
+          type: b.type, 
+          data: b.content ?? {}, 
+          order: i 
+        },
       });
     }
   });

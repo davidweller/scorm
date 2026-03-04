@@ -13,6 +13,10 @@ interface LessonItem {
   interactionCount: number;
 }
 
+interface Block {
+  category: "content" | "interaction";
+}
+
 interface CourseData {
   id: string;
   title: string;
@@ -24,8 +28,7 @@ interface CourseData {
       id: string;
       title: string;
       pages?: {
-        contentBlocks?: unknown[];
-        interactionBlocks?: unknown[];
+        blocks?: Block[];
       }[];
     }[];
   }[];
@@ -111,9 +114,9 @@ export default function GenerateInteractionsPage() {
           id: l.id,
           title: l.title,
           moduleTitle: m.title,
-          hasContent: (l.pages ?? []).some((p) => (p.contentBlocks ?? []).length > 0),
+          hasContent: (l.pages ?? []).some((p) => (p.blocks ?? []).some(b => b.category === "content")),
           interactionCount: (l.pages ?? []).reduce(
-            (sum, p) => sum + (p.interactionBlocks ?? []).length,
+            (sum, p) => sum + (p.blocks ?? []).filter(b => b.category === "interaction").length,
             0
           ),
         }))

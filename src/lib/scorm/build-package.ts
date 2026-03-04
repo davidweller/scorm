@@ -50,9 +50,9 @@ function collectImageUrls(course: CourseForExport): string[] {
   for (const mod of course.modules ?? []) {
     for (const lesson of mod.lessons ?? []) {
       for (const page of lesson.pages ?? []) {
-        for (const block of page.contentBlocks ?? []) {
-          if (block.type === "image") {
-            const url = block.content?.url;
+        for (const block of page.blocks ?? []) {
+          if (block.category === "content" && block.type === "image") {
+            const url = block.data?.url;
             if (typeof url === "string" && url.trim()) {
               urls.add(url.trim());
             }
@@ -66,16 +66,16 @@ function collectImageUrls(course: CourseForExport): string[] {
 }
 
 function rewriteImageUrls(
-  contentBlocks: { id: string; type: string; content: Record<string, unknown>; order: number }[],
+  blocks: BlockForExport[],
   urlMap: Map<string, string>
-): { id: string; type: string; content: Record<string, unknown>; order: number }[] {
-  return contentBlocks.map((block) => {
-    if (block.type === "image" && typeof block.content?.url === "string") {
-      const localPath = urlMap.get(block.content.url);
+): BlockForExport[] {
+  return blocks.map((block) => {
+    if (block.category === "content" && block.type === "image" && typeof block.data?.url === "string") {
+      const localPath = urlMap.get(block.data.url);
       if (localPath) {
         return {
           ...block,
-          content: { ...block.content, url: localPath },
+          data: { ...block.data, url: localPath },
         };
       }
     }
@@ -83,24 +83,34 @@ function rewriteImageUrls(
   });
 }
 
-function getGradingKey(block: { id: string; type: string; config: Record<string, unknown> }): GradingKey | null {
+function getGradingKey(block: BlockForExport): GradingKey | null {
+  if (block.category !== "interaction") return null;
+  
   if (block.type === "multiple_choice") {
-    const correctIndex = Number((block.config as { correctIndex?: number }).correctIndex ?? 0);
+    const correctIndex = Number((block.data as { correctIndex?: number }).correctIndex ?? 0);
     return { blockId: block.id, type: "multiple_choice", correctIndex };
   }
   if (block.type === "true_false") {
-    const correct = (block.config as { correct?: boolean }).correct !== false;
+    const correct = (block.data as { correct?: boolean }).correct !== false;
     return { blockId: block.id, type: "true_false", correct };
   }
   if (block.type === "drag_and_drop") {
-    const correctOrder = (block.config as { correctOrder?: number[] }).correctOrder ?? [];
+    const correctOrder = (block.data as { correctOrder?: number[] }).correctOrder ?? [];
     return { blockId: block.id, type: "drag_and_drop", correctOrder };
   }
   if (block.type === "matching") {
-    const pairs = (block.config as { pairs?: { left: string; right: string }[] }).pairs ?? [];
+    const pairs = (block.data as { pairs?: { left: string; right: string }[] }).pairs ?? [];
     return { blockId: block.id, type: "matching", pairCount: pairs.length };
   }
   return null;
+}
+
+export interface BlockForExport {
+  id: string;
+  category: "content" | "interaction";
+  type: string;
+  data: Record<string, unknown>;
+  order: number;
 }
 
 export interface CourseForExport {
@@ -116,8 +126,7 @@ export interface CourseForExport {
       pages: {
         id: string;
         title: string;
-        contentBlocks: { id: string; type: string; content: Record<string, unknown>; order: number }[];
-        interactionBlocks: { id: string; type: string; config: Record<string, unknown>; order: number }[];
+        blocks: BlockForExport[];
       }[];
     }[];
   }[];
@@ -186,12 +195,13 @@ export async function buildScorm12Zip(course: CourseForExport): Promise<Buffer> 
 
   let totalScoreMax = 0;
   for (const { page } of pages) {
-    for (const block of page.interactionBlocks ?? []) {
+    for (const block of page.blocks ?? []) {
       if (
-        block.type === "multiple_choice" ||
+        block.category === "interaction" &&
+        (block.type === "multiple_choice" ||
         block.type === "true_false" ||
         block.type === "drag_and_drop" ||
-        block.type === "matching"
+        block.type === "matching")
       ) {
         totalScoreMax += 1;
       }
@@ -208,8 +218,8 @@ export async function buildScorm12Zip(course: CourseForExport): Promise<Buffer> 
         const prevHref = i > 0 ? `page_${i - 1}.html` : undefined;
         const nextHref = i < pages.length - 1 ? `page_${i + 1}.html` : undefined;
         const gradingKeysByBlockId: Record<string, GradingKey> = {};
-        for (const block of page.interactionBlocks ?? []) {
-          const key = getGradingKey({ id: block.id, type: block.type, config: block.config ?? {} });
+        for (const block of page.blocks ?? []) {
+          const key = getGradingKey(block);
           if (key) gradingKeysByBlockId[block.id] = key;
         }
         const scormRuntime: ScormRuntimeOptions = {
@@ -218,11 +228,10 @@ export async function buildScorm12Zip(course: CourseForExport): Promise<Buffer> 
           totalScoreMax: Math.max(1, totalScoreMax),
           gradingKeysByBlockId,
         };
-        const rewrittenContentBlocks = rewriteImageUrls(page.contentBlocks, imageUrlMap);
+        const rewrittenBlocks = rewriteImageUrls(page.blocks, imageUrlMap);
         const html = renderPageHtml({
           pageTitle: page.title,
-          contentBlocks: rewrittenContentBlocks,
-          interactionBlocks: page.interactionBlocks,
+          blocks: rewrittenBlocks,
           courseTitle: course.title,
           prevHref,
           nextHref,

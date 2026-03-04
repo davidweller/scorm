@@ -62,8 +62,7 @@ export async function POST(
                   orderBy: { order: "asc" },
                   select: {
                     id: true,
-                    contentBlocks: { select: { id: true } },
-                    interactionBlocks: { select: { id: true } },
+                    blocks: { select: { id: true, category: true } },
                   },
                 },
               },
@@ -93,8 +92,8 @@ export async function POST(
       // Generate for all lessons that have content but no interactions
       for (const mod of course.modules) {
         for (const lesson of mod.lessons) {
-          const hasContent = lesson.pages.some((p) => p.contentBlocks.length > 0);
-          const hasInteractions = lesson.pages.some((p) => p.interactionBlocks.length > 0);
+          const hasContent = lesson.pages.some((p) => p.blocks.some(b => b.category === "content"));
+          const hasInteractions = lesson.pages.some((p) => p.blocks.some(b => b.category === "interaction"));
           if (hasContent && !hasInteractions) {
             lessonsToProcess.push({ id: lesson.id, title: lesson.title });
           }

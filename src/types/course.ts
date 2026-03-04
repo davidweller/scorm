@@ -1,5 +1,7 @@
 import type { BrandConfig } from "./branding";
 
+export type BlockCategory = "content" | "interaction";
+
 export type ContentBlockType =
   | "text"
   | "heading"
@@ -15,26 +17,51 @@ export type InteractionBlockType =
   | "matching"
   | "dialog_cards";
 
+export type BlockType = ContentBlockType | InteractionBlockType;
+
+export type ContentData = Record<string, unknown>;
+
+export type InteractionData =
+  | MultipleChoiceConfig
+  | TrueFalseConfig
+  | ReflectionConfig
+  | DragAndDropConfig
+  | MatchingConfig
+  | DialogCardsConfig;
+
+export interface BlockData {
+  id: string;
+  pageId: string;
+  category: BlockCategory;
+  type: BlockType;
+  data: ContentData | InteractionData;
+  order: number;
+}
+
 export interface ContentBlockData {
   id: string;
   pageId: string;
+  category: "content";
   type: ContentBlockType;
-  content: Record<string, unknown>;
+  data: ContentData;
   order: number;
 }
 
 export interface InteractionBlockData {
   id: string;
   pageId: string;
+  category: "interaction";
   type: InteractionBlockType;
-  config:
-    | MultipleChoiceConfig
-    | TrueFalseConfig
-    | ReflectionConfig
-    | DragAndDropConfig
-    | MatchingConfig
-    | DialogCardsConfig;
+  data: InteractionData;
   order: number;
+}
+
+export function isContentBlock(block: BlockData): block is ContentBlockData {
+  return block.category === "content";
+}
+
+export function isInteractionBlock(block: BlockData): block is InteractionBlockData {
+  return block.category === "interaction";
 }
 
 export interface MultipleChoiceConfig {
@@ -93,8 +120,7 @@ export interface PageData {
   title: string;
   order: number;
   completionRules?: Record<string, unknown> | null;
-  contentBlocks: ContentBlockData[];
-  interactionBlocks: InteractionBlockData[];
+  blocks: BlockData[];
 }
 
 export interface LessonData {

@@ -49,7 +49,10 @@ export async function POST(
           orderBy: { order: "asc" },
           select: {
             id: true,
-            interactionBlocks: { orderBy: { order: "asc" } },
+            blocks: {
+              where: { category: "interaction" },
+              orderBy: { order: "asc" },
+            },
           },
         },
       },

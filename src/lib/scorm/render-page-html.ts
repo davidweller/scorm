@@ -5,17 +5,11 @@
 import type { BrandConfig } from "@/types/branding";
 import { DEFAULT_BRAND_CONFIG } from "@/types/branding";
 
-interface ContentBlock {
+export interface Block {
   id: string;
+  category: "content" | "interaction";
   type: string;
-  content: Record<string, unknown>;
-  order: number;
-}
-
-interface InteractionBlock {
-  id: string;
-  type: string;
-  config: Record<string, unknown>;
+  data: Record<string, unknown>;
   order: number;
 }
 
@@ -32,8 +26,8 @@ function nl2br(s: string): string {
   return escapeHtml(s).replace(/\n/g, "<br />");
 }
 
-export function renderContentBlock(block: ContentBlock): string {
-  const c = block.content || {};
+export function renderContentBlock(block: Block): string {
+  const c = block.data || {};
   if (block.type === "text") {
     const text = typeof c.text === "string" ? c.text : "";
     return `<div class="content-text reveal">${nl2br(text)}</div>`;
@@ -81,10 +75,10 @@ export interface GradingKey {
 }
 
 export function renderInteractionBlock(
-  block: InteractionBlock,
+  block: Block,
   gradingKey?: GradingKey | null
 ): string {
-  const cfg = block.config || {};
+  const cfg = block.data || {};
   const dataAttrs =
     gradingKey && (gradingKey.type === "multiple_choice" || gradingKey.type === "true_false")
       ? gradingKey.type === "multiple_choice"
@@ -219,8 +213,7 @@ export interface ScormRuntimeOptions {
 
 export function renderPageHtml(options: {
   pageTitle: string;
-  contentBlocks: ContentBlock[];
-  interactionBlocks: InteractionBlock[];
+  blocks: Block[];
   courseTitle: string;
   prevHref?: string;
   nextHref?: string;
@@ -235,8 +228,7 @@ export function renderPageHtml(options: {
 }): string {
   const {
     pageTitle,
-    contentBlocks,
-    interactionBlocks,
+    blocks,
     courseTitle,
     prevHref,
     nextHref,
@@ -249,14 +241,16 @@ export function renderPageHtml(options: {
     lessonIndex,
     lessonTitle,
   } = options;
-  const contentHtml = [...contentBlocks]
-    .sort((a, b) => a.order - b.order)
-    .map(renderContentBlock)
-    .filter(Boolean)
-    .join("\n");
-  const sortedBlocks = [...interactionBlocks].sort((a, b) => a.order - b.order);
-  const interactionHtml = sortedBlocks
-    .map((block) => renderInteractionBlock(block, scormRuntime?.gradingKeysByBlockId[block.id]))
+  
+  const sortedBlocks = [...blocks].sort((a, b) => a.order - b.order);
+  const blocksHtml = sortedBlocks
+    .map((block) => {
+      if (block.category === "content") {
+        return renderContentBlock(block);
+      } else {
+        return renderInteractionBlock(block, scormRuntime?.gradingKeysByBlockId[block.id]);
+      }
+    })
     .filter(Boolean)
     .join("\n");
   const nav =
@@ -310,8 +304,7 @@ export function renderPageHtml(options: {
         ${sectionAnchorHtml}
         <h1>${escapeHtml(pageTitle)}</h1>
       </div>
-      <div class="content">${contentHtml}</div>
-      <div class="interactions">${interactionHtml}</div>
+      <div class="blocks">${blocksHtml}</div>
       ${nav}
     </main>
   </div>

@@ -17,8 +17,7 @@ export async function getCourseForExport(courseId: string): Promise<CourseForExp
               pages: {
                 orderBy: { order: "asc" },
                 include: {
-                  contentBlocks: { orderBy: { order: "asc" } },
-                  interactionBlocks: { orderBy: { order: "asc" } },
+                  blocks: { orderBy: { order: "asc" } },
                 },
               },
             },

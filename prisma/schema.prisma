@@ -55,26 +55,20 @@ model Page {
   order       Int      @default(0)
   completionRules Json? // e.g. { type: "all_blocks_viewed" }
   lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  contentBlocks    ContentBlock[]
-  interactionBlocks InteractionBlock[]
+  blocks      Block[]
 }
 
-model ContentBlock {
-  id      String   @id @default(cuid())
-  pageId  String
-  type    String   // text, heading, image, video_embed
-  content Json     // type-specific content
-  order   Int      @default(0)
-  page    Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
-}
+model Block {
+  id       String @id @default(cuid())
+  pageId   String
+  category String // "content" | "interaction"
+  type     String // content: text, heading, image, video_embed, key_insight, key_point
+                  // interaction: multiple_choice, true_false, reflection, drag_and_drop, matching, dialog_cards
+  data     Json   // content or config depending on category
+  order    Int    @default(0)
+  page     Page   @relation(fields: [pageId], references: [id], onDelete: Cascade)
 
-model InteractionBlock {
-  id     String   @id @default(cuid())
-  pageId String
-  type   String   // multiple_choice, true_false, reflection
-  config Json     // question, options, correctIndex, etc.
-  order  Int      @default(0)
-  page   Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  @@index([pageId, order])
 }
 
 model Media {

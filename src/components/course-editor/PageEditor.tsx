@@ -3,8 +3,7 @@
 import { useState } from "react";
 import type { PageApiResponse } from "@/lib/api";
 import { updatePage } from "@/lib/api";
-import { ContentBlockList } from "./blocks/ContentBlockList";
-import { InteractionBlockList } from "./blocks/InteractionBlockList";
+import { BlockList } from "./blocks/BlockList";
 
 export function PageEditor({
   courseId,
@@ -45,26 +44,13 @@ export function PageEditor({
       />
       {saving && <p className="text-xs text-gray-400">Saving…</p>}
 
-      <section className="mb-8">
-        <h3 className="mb-2 text-sm font-medium text-gray-500">Content</h3>
-        <ContentBlockList
-          courseId={courseId}
-          moduleId={moduleId}
-          lessonId={lessonId}
-          pageId={page.id}
-          blocks={page.contentBlocks}
-          onRefresh={onRefresh}
-        />
-      </section>
-
       <section>
-        <h3 className="mb-2 text-sm font-medium text-gray-500">Interactions</h3>
-        <InteractionBlockList
+        <BlockList
           courseId={courseId}
           moduleId={moduleId}
           lessonId={lessonId}
           pageId={page.id}
-          blocks={page.interactionBlocks}
+          blocks={page.blocks}
           onRefresh={onRefresh}
         />
       </section>

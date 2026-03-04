@@ -16,8 +16,7 @@ export async function POST(
     const page = await prisma.page.findUnique({
       where: { id: result.pageId },
       include: {
-        contentBlocks: { orderBy: { order: "asc" } },
-        interactionBlocks: { orderBy: { order: "asc" } },
+        blocks: { orderBy: { order: "asc" } },
       },
     });
     return NextResponse.json(page);

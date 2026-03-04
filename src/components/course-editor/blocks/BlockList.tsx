@@ -18,16 +18,18 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { InteractionBlockApiResponse } from "@/lib/api";
+import type { BlockApiResponse } from "@/lib/api";
 import {
-  createInteractionBlock,
-  deleteInteractionBlock,
-  reorderInteractionBlocks,
+  createBlock,
+  deleteBlock,
+  reorderBlocks,
+  regenerateBlock,
 } from "@/lib/api";
-import { InteractionBlockEditor } from "./InteractionBlockEditor";
+import { BlockEditor } from "./BlockEditor";
+import type { ContentBlockType, InteractionBlockType } from "@/types/course";
 
 interface SortableBlockProps {
-  block: InteractionBlockApiResponse;
+  block: BlockApiResponse;
   courseId: string;
   moduleId: string;
   lessonId: string;
@@ -38,7 +40,7 @@ interface SortableBlockProps {
   regenerating?: boolean;
 }
 
-function SortableInteractionBlock({
+function SortableBlock({
   block,
   courseId,
   moduleId,
@@ -65,7 +67,7 @@ function SortableInteractionBlock({
 
   return (
     <div ref={setNodeRef}>
-      <InteractionBlockEditor
+      <BlockEditor
         courseId={courseId}
         moduleId={moduleId}
         lessonId={lessonId}
@@ -84,7 +86,49 @@ function SortableInteractionBlock({
   );
 }
 
-export function InteractionBlockList({
+const CONTENT_TYPES: { type: ContentBlockType; label: string }[] = [
+  { type: "text", label: "Text" },
+  { type: "heading", label: "Heading" },
+  { type: "image", label: "Image" },
+  { type: "video_embed", label: "Video" },
+  { type: "key_insight", label: "Key insight" },
+  { type: "key_point", label: "Key point" },
+];
+
+const INTERACTION_TYPES: { type: InteractionBlockType; label: string }[] = [
+  { type: "multiple_choice", label: "Multiple choice" },
+  { type: "true_false", label: "True / False" },
+  { type: "drag_and_drop", label: "Drag & Drop" },
+  { type: "matching", label: "Matching" },
+  { type: "reflection", label: "Reflection" },
+  { type: "dialog_cards", label: "Dialog Cards" },
+];
+
+function getDefaultData(category: "content" | "interaction", type: string): Record<string, unknown> {
+  if (category === "content") {
+    switch (type) {
+      case "text": return { text: "" };
+      case "heading": return { level: 1, text: "" };
+      case "image": return { url: "", alt: "" };
+      case "video_embed": return { url: "" };
+      case "key_insight": return { text: "" };
+      case "key_point": return { title: "", text: "" };
+      default: return {};
+    }
+  } else {
+    switch (type) {
+      case "multiple_choice": return { question: "", options: ["", ""], correctIndex: 0 };
+      case "true_false": return { question: "", correct: true };
+      case "reflection": return { prompt: "" };
+      case "drag_and_drop": return { question: "", items: ["", ""], correctOrder: [0, 1] };
+      case "matching": return { question: "", pairs: [{ left: "", right: "" }, { left: "", right: "" }] };
+      case "dialog_cards": return { title: "", cards: [{ front: "", back: "" }] };
+      default: return {};
+    }
+  }
+}
+
+export function BlockList({
   courseId,
   moduleId,
   lessonId,
@@ -96,17 +140,16 @@ export function InteractionBlockList({
   moduleId: string;
   lessonId: string;
   pageId: string;
-  blocks: InteractionBlockApiResponse[];
+  blocks: BlockApiResponse[];
   onRefresh: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  const [showInteractionMenu, setShowInteractionMenu] = useState(false);
   
-  // Local state for optimistic reordering
-  const [localBlocks, setLocalBlocks] = useState<InteractionBlockApiResponse[]>([]);
+  const [localBlocks, setLocalBlocks] = useState<BlockApiResponse[]>([]);
   
-  // Sync local state when props change
   useEffect(() => {
     setLocalBlocks([...blocks].sort((a, b) => a.order - b.order));
   }, [blocks]);
@@ -128,18 +171,15 @@ export function InteractionBlockList({
     const newIndex = localBlocks.findIndex((b) => b.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    // Optimistically update local state immediately
     const reordered = arrayMove(localBlocks, oldIndex, newIndex);
     setLocalBlocks(reordered);
     
     const orderUpdates = reordered.map((b, i) => ({ id: b.id, order: i }));
 
     try {
-      await reorderInteractionBlocks(courseId, moduleId, lessonId, pageId, orderUpdates);
-      // Refresh to sync with server (local state already shows correct order)
+      await reorderBlocks(courseId, moduleId, lessonId, pageId, orderUpdates);
       onRefresh();
     } catch (e) {
-      // Revert on error
       setLocalBlocks([...blocks].sort((a, b) => a.order - b.order));
       setError(e instanceof Error ? e.message : "Failed to reorder");
     }
@@ -148,14 +188,7 @@ export function InteractionBlockList({
   async function handleRegenerate(blockId: string) {
     setRegeneratingId(blockId);
     try {
-      const res = await fetch(
-        `/api/courses/${courseId}/pages/${pageId}/interaction-blocks/${blockId}/regenerate`,
-        { method: "POST" }
-      );
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error || "Regenerate failed");
-      }
+      await regenerateBlock(courseId, pageId, blockId);
       onRefresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Regenerate failed");
@@ -164,48 +197,23 @@ export function InteractionBlockList({
     }
   }
 
-  async function addBlock(
-    type:
-      | "multiple_choice"
-      | "true_false"
-      | "reflection"
-      | "drag_and_drop"
-      | "matching"
-      | "dialog_cards"
-  ) {
+  async function addBlock(category: "content" | "interaction", type: string) {
     setError(null);
     setAdding(true);
+    setShowInteractionMenu(false);
     try {
-      let config: Record<string, unknown>;
-      switch (type) {
-        case "multiple_choice":
-          config = { question: "", options: ["", ""], correctIndex: 0 };
-          break;
-        case "true_false":
-          config = { question: "", correct: true };
-          break;
-        case "reflection":
-          config = { prompt: "" };
-          break;
-        case "drag_and_drop":
-          config = { question: "", items: ["", ""], correctOrder: [0, 1] };
-          break;
-        case "matching":
-          config = { question: "", pairs: [{ left: "", right: "" }, { left: "", right: "" }] };
-          break;
-        case "dialog_cards":
-          config = { title: "", cards: [{ front: "", back: "" }] };
-          break;
-      }
-      await createInteractionBlock(courseId, moduleId, lessonId, pageId, {
+      const data = getDefaultData(category, type);
+      await createBlock(courseId, moduleId, lessonId, pageId, {
+        category,
         type,
-        config,
-        order: blocks.length,
+        data,
+        order: localBlocks.length,
       });
       onRefresh();
-      setAdding(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add block");
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -218,9 +226,9 @@ export function InteractionBlockList({
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={localBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-3 pl-8">
+          <div className="space-y-3">
             {localBlocks.map((block) => (
-              <SortableInteractionBlock
+              <SortableBlock
                 key={block.id}
                 block={block}
                 courseId={courseId}
@@ -229,7 +237,7 @@ export function InteractionBlockList({
                 pageId={pageId}
                 onRefresh={onRefresh}
                 onDelete={async () => {
-                  await deleteInteractionBlock(courseId, moduleId, lessonId, pageId, block.id);
+                  await deleteBlock(courseId, moduleId, lessonId, pageId, block.id);
                   onRefresh();
                 }}
                 onRegenerate={() => handleRegenerate(block.id)}
@@ -239,55 +247,41 @@ export function InteractionBlockList({
           </div>
         </SortableContext>
       </DndContext>
-      <div className="flex flex-wrap gap-2 pl-8">
-        <button
-          type="button"
-          onClick={() => addBlock("multiple_choice")}
-          disabled={adding}
-          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
-        >
-          + Multiple choice
-        </button>
-        <button
-          type="button"
-          onClick={() => addBlock("true_false")}
-          disabled={adding}
-          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
-        >
-          + True / False
-        </button>
-        <button
-          type="button"
-          onClick={() => addBlock("drag_and_drop")}
-          disabled={adding}
-          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
-        >
-          + Drag &amp; Drop
-        </button>
-        <button
-          type="button"
-          onClick={() => addBlock("matching")}
-          disabled={adding}
-          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
-        >
-          + Matching
-        </button>
-        <button
-          type="button"
-          onClick={() => addBlock("reflection")}
-          disabled={adding}
-          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
-        >
-          + Reflection
-        </button>
-        <button
-          type="button"
-          onClick={() => addBlock("dialog_cards")}
-          disabled={adding}
-          className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
-        >
-          + Dialog Cards
-        </button>
+
+      <div className="space-y-3 pt-2">
+        <div>
+          <p className="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Add Content</p>
+          <div className="flex flex-wrap gap-2">
+            {CONTENT_TYPES.map(({ type, label }) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => addBlock("content", type)}
+                disabled={adding}
+                className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+              >
+                + {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Add Interaction</p>
+          <div className="flex flex-wrap gap-2">
+            {INTERACTION_TYPES.map(({ type, label }) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => addBlock("interaction", type)}
+                disabled={adding}
+                className="rounded border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm hover:bg-amber-100 disabled:opacity-50"
+              >
+                + {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

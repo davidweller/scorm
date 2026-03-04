@@ -5,8 +5,10 @@ export interface BrandConfig {
   secondary?: string;
   /** CTA / conversion accent */
   accent?: string;
-  /** Page background */
+  /** Page background (outer/body background) */
   background?: string;
+  /** Content background (main content area background) */
+  contentBg?: string;
   /** Logo image URL */
   logoUrl?: string | null;
   /** Body font (legacy single font) */
@@ -47,7 +49,8 @@ export const DEFAULT_BRAND_CONFIG: BrandConfig = {
   accent: "#ff7700",
   ctaFill: "#ff7700",
   ctaText: "#1b0101",
-  background: "#f8f8f8",
+  background: "#ffffff",
+  contentBg: "#f7f8fa",
   cardBg: "#ffffff",
   linkColor: "#015887",
   headingFont: "Work Sans",

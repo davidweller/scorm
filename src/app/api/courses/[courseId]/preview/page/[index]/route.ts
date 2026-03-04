@@ -11,22 +11,22 @@ import type { CourseForExport } from "@/lib/scorm/build-package";
 function getGradingKey(block: {
   id: string;
   type: string;
-  config: Record<string, unknown>;
+  data: Record<string, unknown>;
 }): GradingKey | null {
   if (block.type === "multiple_choice") {
-    const correctIndex = Number((block.config as { correctIndex?: number }).correctIndex ?? 0);
+    const correctIndex = Number((block.data as { correctIndex?: number }).correctIndex ?? 0);
     return { blockId: block.id, type: "multiple_choice", correctIndex };
   }
   if (block.type === "true_false") {
-    const correct = (block.config as { correct?: boolean }).correct !== false;
+    const correct = (block.data as { correct?: boolean }).correct !== false;
     return { blockId: block.id, type: "true_false", correct };
   }
   if (block.type === "drag_and_drop") {
-    const correctOrder = (block.config as { correctOrder?: number[] }).correctOrder ?? [];
+    const correctOrder = (block.data as { correctOrder?: number[] }).correctOrder ?? [];
     return { blockId: block.id, type: "drag_and_drop", correctOrder };
   }
   if (block.type === "matching") {
-    const pairs = (block.config as { pairs?: { left: string; right: string }[] }).pairs ?? [];
+    const pairs = (block.data as { pairs?: { left: string; right: string }[] }).pairs ?? [];
     return { blockId: block.id, type: "matching", pairCount: pairs.length };
   }
   return null;
@@ -86,12 +86,13 @@ export async function GET(
 
   let totalScoreMax = 0;
   for (const { page: p } of flat) {
-    for (const block of p.interactionBlocks ?? []) {
+    for (const block of p.blocks ?? []) {
       if (
-        block.type === "multiple_choice" ||
+        block.category === "interaction" &&
+        (block.type === "multiple_choice" ||
         block.type === "true_false" ||
         block.type === "drag_and_drop" ||
-        block.type === "matching"
+        block.type === "matching")
       ) {
         totalScoreMax += 1;
       }
@@ -99,9 +100,11 @@ export async function GET(
   }
 
   const gradingKeysByBlockId: Record<string, GradingKey> = {};
-  for (const block of page.interactionBlocks ?? []) {
-    const key = getGradingKey({ id: block.id, type: block.type, config: block.config ?? {} });
-    if (key) gradingKeysByBlockId[block.id] = key;
+  for (const block of page.blocks ?? []) {
+    if (block.category === "interaction") {
+      const key = getGradingKey({ id: block.id, type: block.type, data: block.data ?? {} });
+      if (key) gradingKeysByBlockId[block.id] = key;
+    }
   }
 
   const scormRuntime: ScormRuntimeOptions = {
@@ -113,8 +116,7 @@ export async function GET(
 
   const html = renderPageHtml({
     pageTitle: page.title,
-    contentBlocks: page.contentBlocks,
-    interactionBlocks: page.interactionBlocks,
+    blocks: page.blocks,
     courseTitle: course.title,
     prevHref,
     nextHref,

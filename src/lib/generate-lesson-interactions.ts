@@ -35,9 +35,10 @@ export async function generateInteractionsForLesson(
         orderBy: { order: "asc" },
         select: {
           id: true,
-          contentBlocks: {
+          blocks: {
+            where: { category: "content" },
             orderBy: { order: "asc" },
-            select: { type: true, content: true },
+            select: { type: true, data: true },
           },
         },
       },
@@ -48,14 +49,14 @@ export async function generateInteractionsForLesson(
   const firstPage = lesson.pages[0];
   if (!firstPage) return { success: false, error: "Lesson has no pages" };
 
-  const lessonContent = firstPage.contentBlocks
+  const lessonContent = firstPage.blocks
     .map((block) => {
-      const content = block.content as Record<string, unknown>;
-      if (block.type === "text" && typeof content.text === "string") {
-        return content.text;
+      const data = block.data as Record<string, unknown>;
+      if (block.type === "text" && typeof data.text === "string") {
+        return data.text;
       }
-      if (block.type === "heading" && typeof content.text === "string") {
-        return `## ${content.text}`;
+      if (block.type === "heading" && typeof data.text === "string") {
+        return `## ${data.text}`;
       }
       return "";
     })
@@ -107,9 +108,12 @@ export async function generateInteractionsForLesson(
     return { success: false, error: e instanceof Error ? e.message : "AI generation failed" };
   }
 
-  const existingCount = await prisma.interactionBlock.count({
+  const existingMaxOrder = await prisma.block.findFirst({
     where: { pageId: firstPage.id },
+    orderBy: { order: "desc" },
+    select: { order: true },
   });
+  const startOrder = (existingMaxOrder?.order ?? -1) + 1;
 
   const validTypes = [
     "reflection",
@@ -124,12 +128,13 @@ export async function generateInteractionsForLesson(
     for (let i = 0; i < generated.interactionBlocks.length; i++) {
       const b = generated.interactionBlocks[i];
       if (!validTypes.includes(b.type)) continue;
-      await tx.interactionBlock.create({
+      await tx.block.create({
         data: {
           pageId: firstPage.id,
+          category: "interaction",
           type: b.type,
-          config: (b.config ?? {}) as Prisma.InputJsonValue,
-          order: existingCount + i,
+          data: (b.config ?? {}) as Prisma.InputJsonValue,
+          order: startOrder + i,
         },
       });
     }

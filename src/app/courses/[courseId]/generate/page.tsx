@@ -10,16 +10,15 @@ interface LessonItem {
   moduleTitle: string;
 }
 
-/** Lesson has "generated" content if it has at least one page with at least one content or interaction block */
+/** Lesson has "generated" content if it has at least one page with at least one content block */
 function getInitialResultsFromCourse(
-  modules: { lessons: { id: string; pages?: { contentBlocks?: unknown[]; interactionBlocks?: unknown[] }[] }[] }[]
+  modules: { lessons: { id: string; pages?: { contentBlocks?: unknown[] }[] }[] }[]
 ): Record<string, { success: boolean; error?: string }> {
   const initial: Record<string, { success: boolean; error?: string }> = {};
   for (const mod of modules ?? []) {
     for (const lesson of mod.lessons ?? []) {
       const hasContent = (lesson.pages ?? []).some(
-        (p) =>
-          ((p.contentBlocks ?? []).length > 0 || (p.interactionBlocks ?? []).length > 0)
+        (p) => (p.contentBlocks ?? []).length > 0
       );
       if (hasContent) initial[lesson.id] = { success: true };
     }
@@ -38,7 +37,7 @@ export default function GeneratePagesPage() {
       lessons: {
         id: string;
         title: string;
-        pages?: { contentBlocks?: unknown[]; interactionBlocks?: unknown[] }[];
+        pages?: { contentBlocks?: unknown[] }[];
       }[];
     }[];
   } | null>(null);
@@ -135,14 +134,21 @@ export default function GeneratePagesPage() {
     );
   }
 
+  const allDone = lessons.length > 0 && lessons.every((les) => results[les.id]?.success);
+
   return (
     <main className="min-h-screen p-8">
       <div className="mx-auto max-w-2xl">
         <div>
           <Link href={`/courses/${courseId}`} className="text-blue-600 hover:underline">← Course</Link>
-          <h1 className="mt-2 text-2xl font-bold">Generate lesson content</h1>
+          <h1 className="mt-2 text-2xl font-bold">Generate Lessons</h1>
           <p className="mt-1 text-sm text-gray-500">{course?.title}</p>
         </div>
+
+        <p className="mt-4 text-gray-600">
+          Generate the written content for each lesson. This creates introductions, main content,
+          and summaries based on your course blueprint and learning outcomes.
+        </p>
 
         {error && <p className="mt-4 rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
@@ -151,7 +157,11 @@ export default function GeneratePagesPage() {
         ) : (
           <>
             <div className="mt-6 flex items-center justify-between">
-              <p className="text-sm text-gray-600">Generate intro, content, checks, and summary for each lesson.</p>
+              <p className="text-sm text-gray-600">
+                {allDone 
+                  ? "All lessons have content. You can regenerate individual lessons if needed."
+                  : "Generate text content for each lesson."}
+              </p>
               <button
                 type="button"
                 onClick={generateAll}
@@ -183,7 +193,7 @@ export default function GeneratePagesPage() {
                       disabled={generatingId !== null || generatingAll}
                       className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 disabled:opacity-50"
                     >
-                      {generatingId === les.id ? "…" : "Generate"}
+                      {generatingId === les.id ? "…" : results[les.id]?.success ? "Regenerate" : "Generate"}
                     </button>
                   </div>
                 </li>
@@ -194,10 +204,10 @@ export default function GeneratePagesPage() {
 
         <div className="mt-10 flex gap-2">
           <Link
-            href={`/courses/${courseId}/review`}
+            href={`/courses/${courseId}/generate-interactions`}
             className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
-            Review course
+            Generate Interactions →
           </Link>
           <Link
             href={`/courses/${courseId}/edit`}

@@ -46,8 +46,7 @@ export async function GET(
                 pages: {
                   orderBy: { order: "asc" },
                   include: {
-                    contentBlocks: { orderBy: { order: "asc" } },
-                    interactionBlocks: { orderBy: { order: "asc" } },
+                    blocks: { orderBy: { order: "asc" } },
                   },
                 },
               },
@@ -68,34 +67,34 @@ export async function GET(
       for (const lesson of mod.lessons ?? []) {
         for (const page of lesson.pages ?? []) {
           let pageText = "";
-          for (const block of page.contentBlocks ?? []) {
-            const c = block.content as Record<string, unknown> | null;
-            if (!c) continue;
-            if (block.type === "text" && typeof c.text === "string") {
-              pageText += " " + c.text;
-            }
-            if (block.type === "heading" && typeof c.text === "string") {
-              pageText += " " + c.text;
-            }
-            if (block.type === "image") {
-              if (!c.alt || typeof c.alt !== "string" || !c.alt.trim()) {
-                accessibility.push({ type: "image", message: "Image missing alt text", pageId: page.id });
+          for (const block of page.blocks ?? []) {
+            const data = block.data as Record<string, unknown> | null;
+            if (!data) continue;
+            
+            if (block.category === "content") {
+              if (block.type === "text" && typeof data.text === "string") {
+                pageText += " " + data.text;
               }
-            }
-            const urls = extractUrls(c);
-            for (const url of urls) {
-              brokenLinks.push({ url, pageId: page.id });
-            }
-          }
-          for (const block of page.interactionBlocks ?? []) {
-            const config = block.config as Record<string, unknown> | null;
-            if (!config) continue;
-            if (typeof config.question === "string") pageText += " " + config.question;
-            if (typeof config.prompt === "string") pageText += " " + config.prompt;
-            if (Array.isArray(config.options)) {
-              config.options.forEach((o) => {
-                if (typeof o === "string") pageText += " " + o;
-              });
+              if (block.type === "heading" && typeof data.text === "string") {
+                pageText += " " + data.text;
+              }
+              if (block.type === "image") {
+                if (!data.alt || typeof data.alt !== "string" || !data.alt.trim()) {
+                  accessibility.push({ type: "image", message: "Image missing alt text", pageId: page.id });
+                }
+              }
+              const urls = extractUrls(data);
+              for (const url of urls) {
+                brokenLinks.push({ url, pageId: page.id });
+              }
+            } else if (block.category === "interaction") {
+              if (typeof data.question === "string") pageText += " " + data.question;
+              if (typeof data.prompt === "string") pageText += " " + data.prompt;
+              if (Array.isArray(data.options)) {
+                data.options.forEach((o) => {
+                  if (typeof o === "string") pageText += " " + o;
+                });
+              }
             }
           }
           contentByPage[page.id] = pageText;
@@ -123,9 +122,9 @@ export async function GET(
       for (const lesson of mod.lessons ?? []) {
         for (const page of lesson.pages ?? []) {
           let prevLevel = 0;
-          for (const block of page.contentBlocks ?? []) {
-            if (block.type === "heading") {
-              const level = (block.content as { level?: number })?.level ?? 1;
+          for (const block of page.blocks ?? []) {
+            if (block.category === "content" && block.type === "heading") {
+              const level = (block.data as { level?: number })?.level ?? 1;
               if (level > prevLevel + 1) {
                 accessibility.push({
                   type: "heading",

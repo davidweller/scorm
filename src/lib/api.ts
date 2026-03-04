@@ -99,15 +99,16 @@ function blockPath(courseId: string, moduleId: string, lessonId: string, pageId:
   return `${base}/api/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/pages/${pageId}`;
 }
 
-export async function createContentBlock(
+// Unified block API functions
+export async function createBlock(
   courseId: string,
   moduleId: string,
   lessonId: string,
   pageId: string,
-  data: { type: string; content?: Record<string, unknown>; order?: number }
+  data: { category: "content" | "interaction"; type: string; data?: Record<string, unknown>; order?: number }
 ) {
-  return json<{ id: string }>(
-    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/content-blocks`, {
+  return json<BlockApiResponse>(
+    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/blocks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -115,16 +116,16 @@ export async function createContentBlock(
   );
 }
 
-export async function updateContentBlock(
+export async function updateBlock(
   courseId: string,
   moduleId: string,
   lessonId: string,
   pageId: string,
   blockId: string,
-  data: { type?: string; content?: Record<string, unknown>; order?: number }
+  data: { type?: string; data?: Record<string, unknown>; order?: number }
 ) {
-  return json<unknown>(
-    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/content-blocks/${blockId}`, {
+  return json<BlockApiResponse>(
+    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/blocks/${blockId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -132,21 +133,21 @@ export async function updateContentBlock(
   );
 }
 
-export async function deleteContentBlock(
+export async function deleteBlock(
   courseId: string,
   moduleId: string,
   lessonId: string,
   pageId: string,
   blockId: string
 ) {
-  const res = await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/content-blocks/${blockId}`, { method: "DELETE" });
+  const res = await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/blocks/${blockId}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || res.statusText);
   }
 }
 
-export async function reorderContentBlocks(
+export async function reorderBlocks(
   courseId: string,
   moduleId: string,
   lessonId: string,
@@ -154,7 +155,7 @@ export async function reorderContentBlocks(
   orderUpdates: { id: string; order: number }[]
 ) {
   return json<unknown>(
-    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/content-blocks/reorder`, {
+    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/blocks/reorder`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ orderUpdates }),
@@ -162,65 +163,15 @@ export async function reorderContentBlocks(
   );
 }
 
-export async function createInteractionBlock(
+export async function regenerateBlock(
   courseId: string,
-  moduleId: string,
-  lessonId: string,
   pageId: string,
-  data: { type: string; config?: Record<string, unknown>; order?: number }
+  blockId: string
 ) {
-  return json<{ id: string }>(
-    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/interaction-blocks`, {
+  return json<{ success: boolean; block: BlockApiResponse }>(
+    await fetch(`${base}/api/courses/${courseId}/pages/${pageId}/blocks/${blockId}/regenerate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    })
-  );
-}
-
-export async function updateInteractionBlock(
-  courseId: string,
-  moduleId: string,
-  lessonId: string,
-  pageId: string,
-  blockId: string,
-  data: { type?: string; config?: Record<string, unknown>; order?: number }
-) {
-  return json<unknown>(
-    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/interaction-blocks/${blockId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    })
-  );
-}
-
-export async function deleteInteractionBlock(
-  courseId: string,
-  moduleId: string,
-  lessonId: string,
-  pageId: string,
-  blockId: string
-) {
-  const res = await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/interaction-blocks/${blockId}`, { method: "DELETE" });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error || res.statusText);
-  }
-}
-
-export async function reorderInteractionBlocks(
-  courseId: string,
-  moduleId: string,
-  lessonId: string,
-  pageId: string,
-  orderUpdates: { id: string; order: number }[]
-) {
-  return json<unknown>(
-    await fetch(`${blockPath(courseId, moduleId, lessonId, pageId)}/interaction-blocks/reorder`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderUpdates }),
     })
   );
 }
@@ -265,22 +216,14 @@ export interface PageApiResponse {
   title: string;
   order: number;
   completionRules: unknown;
-  contentBlocks: ContentBlockApiResponse[];
-  interactionBlocks: InteractionBlockApiResponse[];
+  blocks: BlockApiResponse[];
 }
 
-export interface ContentBlockApiResponse {
+export interface BlockApiResponse {
   id: string;
   pageId: string;
+  category: "content" | "interaction";
   type: string;
-  content: Record<string, unknown>;
-  order: number;
-}
-
-export interface InteractionBlockApiResponse {
-  id: string;
-  pageId: string;
-  type: string;
-  config: Record<string, unknown>;
+  data: Record<string, unknown>;
   order: number;
 }

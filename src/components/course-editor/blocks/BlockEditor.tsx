@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
-import type { InteractionBlockApiResponse } from "@/lib/api";
-import { updateInteractionBlock } from "@/lib/api";
+import type { BlockApiResponse } from "@/lib/api";
+import { updateBlock } from "@/lib/api";
 import { BlockWrap } from "./BlockWrap";
+import MediaPickerModal from "@/components/media/MediaPickerModal";
+import type { Media } from "@/types/media";
 
-export interface InteractionBlockEditorProps {
+export interface BlockEditorProps {
   courseId: string;
   moduleId: string;
   lessonId: string;
   pageId: string;
-  block: InteractionBlockApiResponse;
+  block: BlockApiResponse;
   onRefresh: () => void;
   onDelete: () => void;
   onRegenerate?: () => void;
@@ -23,7 +25,7 @@ export interface InteractionBlockEditorProps {
   style?: React.CSSProperties;
 }
 
-export function InteractionBlockEditor({
+export function BlockEditor({
   courseId,
   moduleId,
   lessonId,
@@ -37,13 +39,13 @@ export function InteractionBlockEditor({
   dragListeners,
   isDragging,
   style,
-}: InteractionBlockEditorProps) {
+}: BlockEditorProps) {
   const [saving, setSaving] = useState(false);
 
-  async function save(config: Record<string, unknown>) {
+  async function save(data: Record<string, unknown>) {
     setSaving(true);
     try {
-      await updateInteractionBlock(courseId, moduleId, lessonId, pageId, block.id, { config });
+      await updateBlock(courseId, moduleId, lessonId, pageId, block.id, { data });
       onRefresh();
     } finally {
       setSaving(false);
@@ -53,7 +55,7 @@ export function InteractionBlockEditor({
   const wrapProps = {
     blockId: block.id,
     blockType: block.type,
-    variant: "interaction" as const,
+    variant: block.category as "content" | "interaction",
     saving,
     regenerating,
     onDelete,
@@ -64,84 +66,425 @@ export function InteractionBlockEditor({
     style,
   };
 
-  if (block.type === "multiple_choice") {
-    return (
-      <BlockWrap {...wrapProps}>
-        <MultipleChoiceEditor
-          config={block.config as { question?: string; options?: string[]; correctIndex?: number; explanation?: string }}
-          onSave={(c) => save(c)}
-        />
-      </BlockWrap>
-    );
+  // Content block types
+  if (block.category === "content") {
+    if (block.type === "text") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <TextBlockEditor
+            data={block.data as { text?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
+    if (block.type === "heading") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <HeadingBlockEditor
+            data={block.data as { level?: number; text?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
+    if (block.type === "image") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <ImageBlockEditor
+            data={block.data as { url?: string; alt?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
+    if (block.type === "video_embed") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <VideoEmbedBlockEditor
+            data={block.data as { url?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
+    if (block.type === "key_insight") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <KeyInsightBlockEditor
+            data={block.data as { text?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
+    if (block.type === "key_point") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <KeyPointBlockEditor
+            data={block.data as { title?: string; text?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
   }
-  if (block.type === "true_false") {
-    return (
-      <BlockWrap {...wrapProps}>
-        <TrueFalseEditor
-          config={block.config as { question?: string; correct?: boolean; explanation?: string }}
-          onSave={(c) => save(c)}
-        />
-      </BlockWrap>
-    );
+
+  // Interaction block types
+  if (block.category === "interaction") {
+    if (block.type === "multiple_choice") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <MultipleChoiceEditor
+            data={block.data as { question?: string; options?: string[]; correctIndex?: number; explanation?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
+    if (block.type === "true_false") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <TrueFalseEditor
+            data={block.data as { question?: string; correct?: boolean; explanation?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
+    if (block.type === "reflection") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <ReflectionEditor
+            data={block.data as { prompt?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
+    if (block.type === "drag_and_drop") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <DragAndDropEditor
+            data={block.data as { question?: string; items?: string[]; correctOrder?: number[]; explanation?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
+    if (block.type === "matching") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <MatchingEditor
+            data={block.data as { question?: string; pairs?: { left: string; right: string }[]; explanation?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
+    if (block.type === "dialog_cards") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <DialogCardsEditor
+            data={block.data as { title?: string; cards?: { front: string; back: string }[] }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
   }
-  if (block.type === "reflection") {
-    return (
-      <BlockWrap {...wrapProps}>
-        <ReflectionEditor
-          config={block.config as { prompt?: string }}
-          onSave={(c) => save(c)}
-        />
-      </BlockWrap>
-    );
-  }
-  if (block.type === "drag_and_drop") {
-    return (
-      <BlockWrap {...wrapProps}>
-        <DragAndDropEditor
-          config={block.config as { question?: string; items?: string[]; correctOrder?: number[]; explanation?: string }}
-          onSave={(c) => save(c)}
-        />
-      </BlockWrap>
-    );
-  }
-  if (block.type === "matching") {
-    return (
-      <BlockWrap {...wrapProps}>
-        <MatchingEditor
-          config={block.config as { question?: string; pairs?: { left: string; right: string }[]; explanation?: string }}
-          onSave={(c) => save(c)}
-        />
-      </BlockWrap>
-    );
-  }
-  if (block.type === "dialog_cards") {
-    return (
-      <BlockWrap {...wrapProps}>
-        <DialogCardsEditor
-          config={block.config as { title?: string; cards?: { front: string; back: string }[] }}
-          onSave={(c) => save(c)}
-        />
-      </BlockWrap>
-    );
-  }
+
   return (
     <BlockWrap {...wrapProps}>
-      <p className="text-sm text-gray-400">Unknown type: {block.type}</p>
+      <p className="text-sm text-gray-400">Unknown block type: {block.type}</p>
     </BlockWrap>
   );
 }
 
-function MultipleChoiceEditor({
-  config,
+// Content block sub-editors
+
+function TextBlockEditor({
+  data,
   onSave,
 }: {
-  config: { question?: string; options?: string[]; correctIndex?: number; explanation?: string };
-  onSave: (c: Record<string, unknown>) => void;
+  data: { text?: string };
+  onSave: (d: Record<string, unknown>) => void;
 }) {
-  const [question, setQuestion] = useState(config.question ?? "");
-  const [options, setOptions] = useState<string[]>(Array.isArray(config.options) && config.options.length > 0 ? config.options : ["", ""]);
-  const [correctIndex, setCorrectIndex] = useState(Math.max(0, config.correctIndex ?? 0));
-  const [explanation, setExplanation] = useState(config.explanation ?? "");
+  const [text, setText] = useState(data.text ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [text]);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => onSave({ text })}
+      onKeyDown={handleKeyDown}
+      rows={1}
+      className="w-full resize-none overflow-hidden rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      placeholder="Enter text…"
+    />
+  );
+}
+
+function HeadingBlockEditor({
+  data,
+  onSave,
+}: {
+  data: { level?: number; text?: string };
+  onSave: (d: Record<string, unknown>) => void;
+}) {
+  const [level, setLevel] = useState(data.level ?? 1);
+  const [text, setText] = useState(data.text ?? "");
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <select
+        value={level}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setLevel(v);
+          onSave({ level: v, text });
+        }}
+        className="rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      >
+        <option value={1}>Heading 1</option>
+        <option value={2}>Heading 2</option>
+        <option value={3}>Heading 3</option>
+      </select>
+      <input
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => onSave({ level, text })}
+        onKeyDown={handleKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm font-semibold transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="Heading text…"
+      />
+    </div>
+  );
+}
+
+function ImageBlockEditor({
+  data,
+  onSave,
+}: {
+  data: { url?: string; alt?: string };
+  onSave: (d: Record<string, unknown>) => void;
+}) {
+  const [url, setUrl] = useState(data.url ?? "");
+  const [alt, setAlt] = useState(data.alt ?? "");
+  const [showPicker, setShowPicker] = useState(false);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
+  function handleMediaSelect(media: Media) {
+    setUrl(media.url);
+    if (media.alt) setAlt(media.alt);
+    onSave({ url: media.url, alt: media.alt || alt });
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onBlur={() => onSave({ url, alt })}
+          onKeyDown={handleKeyDown}
+          className="flex-1 rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="Image URL"
+        />
+        <button
+          type="button"
+          onClick={() => setShowPicker(true)}
+          className="shrink-0 rounded bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-600 hover:bg-indigo-100 transition-colors"
+        >
+          Browse
+        </button>
+      </div>
+      <input
+        type="text"
+        value={alt}
+        onChange={(e) => setAlt(e.target.value)}
+        onBlur={() => onSave({ url, alt })}
+        onKeyDown={handleKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="Alt text"
+      />
+      {url && (
+        // eslint-disable-next-line @next/next/no-img-element -- user-provided URL, preview only
+        <img src={url} alt={alt || "Preview"} className="max-h-40 rounded object-contain" />
+      )}
+      <MediaPickerModal
+        isOpen={showPicker}
+        onClose={() => setShowPicker(false)}
+        onSelect={handleMediaSelect}
+      />
+    </div>
+  );
+}
+
+function VideoEmbedBlockEditor({
+  data,
+  onSave,
+}: {
+  data: { url?: string };
+  onSave: (d: Record<string, unknown>) => void;
+}) {
+  const [url, setUrl] = useState(data.url ?? "");
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
+  return (
+    <div>
+      <input
+        type="url"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        onBlur={() => onSave({ url })}
+        onKeyDown={handleKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="YouTube or Vimeo URL"
+      />
+      <p className="mt-1 text-xs text-gray-500">Paste a YouTube or Vimeo link; it will be embedded in the export.</p>
+    </div>
+  );
+}
+
+function KeyInsightBlockEditor({
+  data,
+  onSave,
+}: {
+  data: { text?: string };
+  onSave: (d: Record<string, unknown>) => void;
+}) {
+  const [text, setText] = useState(data.text ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [text]);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => onSave({ text })}
+      onKeyDown={handleKeyDown}
+      rows={1}
+      className="w-full resize-none overflow-hidden rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      placeholder="Key insight or pull quote (e.g. a short, memorable statement)"
+    />
+  );
+}
+
+function KeyPointBlockEditor({
+  data,
+  onSave,
+}: {
+  data: { title?: string; text?: string };
+  onSave: (d: Record<string, unknown>) => void;
+}) {
+  const [title, setTitle] = useState(data.title ?? "");
+  const [text, setText] = useState(data.text ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [text]);
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
+  function handleTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={() => onSave({ title, text })}
+        onKeyDown={handleInputKeyDown}
+        className="w-full rounded border border-gray-200 px-2 py-1 text-sm font-medium transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="Key point title (optional)"
+      />
+      <textarea
+        ref={textareaRef}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => onSave({ title, text })}
+        onKeyDown={handleTextareaKeyDown}
+        rows={1}
+        className="w-full resize-none overflow-hidden rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="Key point content"
+      />
+    </div>
+  );
+}
+
+// Interaction block sub-editors
+
+function MultipleChoiceEditor({
+  data,
+  onSave,
+}: {
+  data: { question?: string; options?: string[]; correctIndex?: number; explanation?: string };
+  onSave: (d: Record<string, unknown>) => void;
+}) {
+  const [question, setQuestion] = useState(data.question ?? "");
+  const [options, setOptions] = useState<string[]>(Array.isArray(data.options) && data.options.length > 0 ? data.options : ["", ""]);
+  const [correctIndex, setCorrectIndex] = useState(Math.max(0, data.correctIndex ?? 0));
+  const [explanation, setExplanation] = useState(data.explanation ?? "");
 
   const save = () => {
     const opts = options.filter((o) => o.trim() !== "");
@@ -245,15 +588,15 @@ function MultipleChoiceEditor({
 }
 
 function TrueFalseEditor({
-  config,
+  data,
   onSave,
 }: {
-  config: { question?: string; correct?: boolean; explanation?: string };
-  onSave: (c: Record<string, unknown>) => void;
+  data: { question?: string; correct?: boolean; explanation?: string };
+  onSave: (d: Record<string, unknown>) => void;
 }) {
-  const [question, setQuestion] = useState(config.question ?? "");
-  const [correct, setCorrect] = useState(config.correct ?? true);
-  const [explanation, setExplanation] = useState(config.explanation ?? "");
+  const [question, setQuestion] = useState(data.question ?? "");
+  const [correct, setCorrect] = useState(data.correct ?? true);
+  const [explanation, setExplanation] = useState(data.explanation ?? "");
 
   const save = () => onSave({ question, correct, explanation: explanation.trim() || undefined });
 
@@ -316,13 +659,13 @@ function TrueFalseEditor({
 }
 
 function ReflectionEditor({
-  config,
+  data,
   onSave,
 }: {
-  config: { prompt?: string };
-  onSave: (c: Record<string, unknown>) => void;
+  data: { prompt?: string };
+  onSave: (d: Record<string, unknown>) => void;
 }) {
-  const [prompt, setPrompt] = useState(config.prompt ?? "");
+  const [prompt, setPrompt] = useState(data.prompt ?? "");
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Escape") {
@@ -347,17 +690,17 @@ function ReflectionEditor({
 }
 
 function DragAndDropEditor({
-  config,
+  data,
   onSave,
 }: {
-  config: { question?: string; items?: string[]; correctOrder?: number[]; explanation?: string };
-  onSave: (c: Record<string, unknown>) => void;
+  data: { question?: string; items?: string[]; correctOrder?: number[]; explanation?: string };
+  onSave: (d: Record<string, unknown>) => void;
 }) {
-  const [question, setQuestion] = useState(config.question ?? "");
+  const [question, setQuestion] = useState(data.question ?? "");
   const [items, setItems] = useState<string[]>(
-    Array.isArray(config.items) && config.items.length > 0 ? config.items : ["", ""]
+    Array.isArray(data.items) && data.items.length > 0 ? data.items : ["", ""]
   );
-  const [explanation, setExplanation] = useState(config.explanation ?? "");
+  const [explanation, setExplanation] = useState(data.explanation ?? "");
 
   const save = () => {
     const filteredItems = items.filter((item) => item.trim() !== "");
@@ -447,19 +790,19 @@ function DragAndDropEditor({
 }
 
 function MatchingEditor({
-  config,
+  data,
   onSave,
 }: {
-  config: { question?: string; pairs?: { left: string; right: string }[]; explanation?: string };
-  onSave: (c: Record<string, unknown>) => void;
+  data: { question?: string; pairs?: { left: string; right: string }[]; explanation?: string };
+  onSave: (d: Record<string, unknown>) => void;
 }) {
-  const [question, setQuestion] = useState(config.question ?? "");
+  const [question, setQuestion] = useState(data.question ?? "");
   const [pairs, setPairs] = useState<{ left: string; right: string }[]>(
-    Array.isArray(config.pairs) && config.pairs.length > 0
-      ? config.pairs
+    Array.isArray(data.pairs) && data.pairs.length > 0
+      ? data.pairs
       : [{ left: "", right: "" }, { left: "", right: "" }]
   );
-  const [explanation, setExplanation] = useState(config.explanation ?? "");
+  const [explanation, setExplanation] = useState(data.explanation ?? "");
 
   const save = () => {
     const filteredPairs = pairs.filter((p) => p.left.trim() !== "" || p.right.trim() !== "");
@@ -558,16 +901,16 @@ function MatchingEditor({
 }
 
 function DialogCardsEditor({
-  config,
+  data,
   onSave,
 }: {
-  config: { title?: string; cards?: { front: string; back: string }[] };
-  onSave: (c: Record<string, unknown>) => void;
+  data: { title?: string; cards?: { front: string; back: string }[] };
+  onSave: (d: Record<string, unknown>) => void;
 }) {
-  const [title, setTitle] = useState(config.title ?? "");
+  const [title, setTitle] = useState(data.title ?? "");
   const [cards, setCards] = useState<{ front: string; back: string }[]>(
-    Array.isArray(config.cards) && config.cards.length > 0
-      ? config.cards
+    Array.isArray(data.cards) && data.cards.length > 0
+      ? data.cards
       : [{ front: "", back: "" }]
   );
 

@@ -52,7 +52,7 @@ export function getCourseCounts(course: CourseApiResponse): {
     for (const lesson of mod.lessons) {
       totalPages += lesson.pages.length;
       for (const page of lesson.pages) {
-        totalInteractions += page.interactionBlocks?.length ?? 0;
+        totalInteractions += (page.blocks ?? []).filter(b => b.category === "interaction").length;
       }
     }
   }
@@ -71,8 +71,10 @@ export function getEstimatedSeatTimeMinutes(course: CourseApiResponse): number |
   for (const mod of course.modules ?? []) {
     for (const lesson of mod.lessons ?? []) {
       for (const page of lesson.pages ?? []) {
-        for (const block of page.contentBlocks ?? []) {
-          totalWords += wordCountFromContent(block.content);
+        for (const block of page.blocks ?? []) {
+          if (block.category === "content") {
+            totalWords += wordCountFromContent(block.data);
+          }
         }
       }
     }
@@ -85,7 +87,7 @@ export function getEstimatedSeatTimeMinutes(course: CourseApiResponse): number |
 export function getCourseCompletion(course: CourseApiResponse): number {
   const pages = collectAllPages(course);
   if (pages.length === 0) return 0;
-  const withContent = pages.filter((p) => (p.contentBlocks?.length ?? 0) > 0).length;
+  const withContent = pages.filter((p) => (p.blocks ?? []).some(b => b.category === "content")).length;
   return Math.round((withContent / pages.length) * 100);
 }
 
@@ -101,18 +103,21 @@ export function getCourseStatus(course: CourseApiResponse): CourseStatus {
 export function getFlowCompletion(course: CourseApiResponse): {
   blueprint: boolean;
   generate: boolean;
+  interactions: boolean;
   review: boolean;
   preview: boolean;
   export: boolean;
 } {
-  const { totalModules, totalLessons, totalPages } = getCourseCounts(course);
+  const { totalModules, totalLessons, totalPages, totalInteractions } = getCourseCounts(course);
   const completion = getCourseCompletion(course);
   const hasStructure = totalModules > 0 && totalLessons > 0;
   const hasContent = totalPages > 0 && completion > 0;
+  const hasInteractions = totalInteractions > 0;
   return {
     blueprint: hasStructure,
     generate: hasContent,
-    review: hasContent,
+    interactions: hasInteractions,
+    review: hasContent && hasInteractions,
     preview: hasContent,
     export: hasContent,
   };
@@ -130,6 +135,7 @@ export interface StageCompletion {
 export interface FlowCompletionV2 {
   blueprint: StageCompletion;
   generate: StageCompletion;
+  interactions: StageCompletion;
   review: StageCompletion;
   preview: StageCompletion;
   export: StageCompletion;
@@ -151,7 +157,7 @@ export function getCourseIssues(course: CourseApiResponse): CourseIssue[] {
   for (const mod of course.modules ?? []) {
     for (const lesson of mod.lessons ?? []) {
       for (const page of lesson.pages ?? []) {
-        const hasContent = (page.contentBlocks?.length ?? 0) > 0;
+        const hasContent = (page.blocks ?? []).some(b => b.category === "content");
         if (!hasContent) {
           issues.push({
             type: "empty_page",
@@ -190,7 +196,7 @@ export function getCourseIssues(course: CourseApiResponse): CourseIssue[] {
 }
 
 export function getFlowCompletionV2(course: CourseApiResponse): FlowCompletionV2 {
-  const { totalModules, totalLessons, totalPages } = getCourseCounts(course);
+  const { totalModules, totalLessons, totalPages, totalInteractions } = getCourseCounts(course);
   const completion = getCourseCompletion(course);
   const issues = getCourseIssues(course);
   const errorCount = issues.filter((i) => i.severity === "error").length;
@@ -200,6 +206,7 @@ export function getFlowCompletionV2(course: CourseApiResponse): FlowCompletionV2
   const hasStructure = totalModules > 0 && totalLessons > 0;
   const hasContent = totalPages > 0 && completion > 0;
   const allPagesHaveContent = completion === 100;
+  const hasInteractions = totalInteractions > 0;
 
   const blueprint: StageCompletion = (() => {
     if (!hasTitle) {
@@ -229,7 +236,29 @@ export function getFlowCompletionV2(course: CourseApiResponse): FlowCompletionV2
         isComplete: false,
       };
     }
-    return { status: "complete", subtext: "Content created", isComplete: true };
+    return { status: "complete", subtext: "Lessons generated", isComplete: true };
+  })();
+
+  const interactions: StageCompletion = (() => {
+    if (!allPagesHaveContent) {
+      return { status: "not_started", subtext: "Generate lessons first", isComplete: false };
+    }
+    if (!hasInteractions) {
+      return { status: "not_started", subtext: "No interactions yet", isComplete: false };
+    }
+    const lessonsWithInteractions = (course.modules ?? []).reduce((count, mod) => {
+      return count + (mod.lessons ?? []).filter((l) => 
+        (l.pages ?? []).some((p) => (p.blocks ?? []).some(b => b.category === "interaction"))
+      ).length;
+    }, 0);
+    if (lessonsWithInteractions < totalLessons) {
+      return {
+        status: "in_progress",
+        subtext: `${lessonsWithInteractions}/${totalLessons} lessons have interactions`,
+        isComplete: false,
+      };
+    }
+    return { status: "complete", subtext: "Interactions added", isComplete: true };
   })();
 
   const review: StageCompletion = (() => {
@@ -275,6 +304,7 @@ export function getFlowCompletionV2(course: CourseApiResponse): FlowCompletionV2
   return {
     blueprint,
     generate,
+    interactions,
     review,
     preview,
     export: exportStage,
@@ -282,7 +312,7 @@ export function getFlowCompletionV2(course: CourseApiResponse): FlowCompletionV2
 }
 
 export function getNextRecommendedAction(course: CourseApiResponse): {
-  stage: "blueprint" | "generate" | "review" | "preview" | "export";
+  stage: "blueprint" | "generate" | "interactions" | "review" | "preview" | "export";
   label: string;
   description: string;
   href: string;
@@ -302,9 +332,18 @@ export function getNextRecommendedAction(course: CourseApiResponse): {
   if (!flow.generate.isComplete) {
     return {
       stage: "generate",
-      label: "Generate Content",
+      label: "Generate Lessons",
       description: flow.generate.subtext,
       href: `/courses/${course.id}/generate`,
+    };
+  }
+
+  if (!flow.interactions.isComplete) {
+    return {
+      stage: "interactions",
+      label: "Generate Interactions",
+      description: flow.interactions.subtext,
+      href: `/courses/${course.id}/generate-interactions`,
     };
   }
 
@@ -349,8 +388,9 @@ export function getModuleStats(module: ModuleApiResponse): {
     const pages = lesson.pages ?? [];
     pageCount += pages.length;
     for (const page of pages) {
-      interactionCount += page.interactionBlocks?.length ?? 0;
-      if ((page.contentBlocks?.length ?? 0) > 0) pagesWithContent++;
+      const blocks = page.blocks ?? [];
+      interactionCount += blocks.filter(b => b.category === "interaction").length;
+      if (blocks.some(b => b.category === "content")) pagesWithContent++;
     }
   }
   const completionPercent = pageCount === 0 ? 0 : Math.round((pagesWithContent / pageCount) * 100);
