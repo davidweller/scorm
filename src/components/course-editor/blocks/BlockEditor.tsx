@@ -8,6 +8,7 @@ import { updateBlock } from "@/lib/api";
 import { BlockWrap } from "./BlockWrap";
 import MediaPickerModal from "@/components/media/MediaPickerModal";
 import type { Media } from "@/types/media";
+import { RichTextEditor } from "../RichTextEditor";
 
 export interface BlockEditorProps {
   courseId: string;
@@ -211,30 +212,12 @@ function TextBlockEditor({
   onSave: (d: Record<string, unknown>) => void;
 }) {
   const [text, setText] = useState(data.text ?? "");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [text]);
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Escape") {
-      e.currentTarget.blur();
-    }
-  }
 
   return (
-    <textarea
-      ref={textareaRef}
-      value={text}
-      onChange={(e) => setText(e.target.value)}
+    <RichTextEditor
+      content={text}
+      onUpdate={(html) => setText(html)}
       onBlur={() => onSave({ text })}
-      onKeyDown={handleKeyDown}
-      rows={1}
-      className="w-full resize-none overflow-hidden rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
       placeholder="Enter text…"
     />
   );
@@ -388,30 +371,12 @@ function KeyInsightBlockEditor({
   onSave: (d: Record<string, unknown>) => void;
 }) {
   const [text, setText] = useState(data.text ?? "");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [text]);
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Escape") {
-      e.currentTarget.blur();
-    }
-  }
 
   return (
-    <textarea
-      ref={textareaRef}
-      value={text}
-      onChange={(e) => setText(e.target.value)}
+    <RichTextEditor
+      content={text}
+      onUpdate={(html) => setText(html)}
       onBlur={() => onSave({ text })}
-      onKeyDown={handleKeyDown}
-      rows={1}
-      className="w-full resize-none overflow-hidden rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
       placeholder="Key insight or pull quote (e.g. a short, memorable statement)"
     />
   );
@@ -426,22 +391,8 @@ function KeyPointBlockEditor({
 }) {
   const [title, setTitle] = useState(data.title ?? "");
   const [text, setText] = useState(data.text ?? "");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [text]);
 
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Escape") {
-      e.currentTarget.blur();
-    }
-  }
-
-  function handleTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Escape") {
       e.currentTarget.blur();
     }
@@ -458,14 +409,10 @@ function KeyPointBlockEditor({
         className="w-full rounded border border-gray-200 px-2 py-1 text-sm font-medium transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="Key point title (optional)"
       />
-      <textarea
-        ref={textareaRef}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
+      <RichTextEditor
+        content={text}
+        onUpdate={(html) => setText(html)}
         onBlur={() => onSave({ title, text })}
-        onKeyDown={handleTextareaKeyDown}
-        rows={1}
-        className="w-full resize-none overflow-hidden rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         placeholder="Key point content"
       />
     </div>

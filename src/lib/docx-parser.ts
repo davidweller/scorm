@@ -114,43 +114,52 @@ function stripHtmlTags(html: string): string {
 }
 
 export function formatDocumentForAI(doc: ParsedDocument): string {
-  // Convert HTML to markdown-like format that preserves structure
-  // This keeps headings inline with their content so AI understands the hierarchy
+  // Convert HTML to a format that preserves structure for AI
+  // Headings become markdown-style markers so AI understands hierarchy
+  // Lists and inline formatting are preserved as clean HTML for direct output
   
-  let markdown = doc.html;
+  let content = doc.html;
   
-  // Convert headings to markdown format
-  markdown = markdown.replace(/<h1[^>]*>(.*?)<\/h1>/gi, "\n\n# $1\n\n");
-  markdown = markdown.replace(/<h2[^>]*>(.*?)<\/h2>/gi, "\n\n## $1\n\n");
-  markdown = markdown.replace(/<h3[^>]*>(.*?)<\/h3>/gi, "\n\n### $1\n\n");
-  markdown = markdown.replace(/<h4[^>]*>(.*?)<\/h4>/gi, "\n\n#### $1\n\n");
-  markdown = markdown.replace(/<h5[^>]*>(.*?)<\/h5>/gi, "\n\n##### $1\n\n");
-  markdown = markdown.replace(/<h6[^>]*>(.*?)<\/h6>/gi, "\n\n###### $1\n\n");
+  // Convert headings to markdown format (for structure recognition)
+  content = content.replace(/<h1[^>]*>(.*?)<\/h1>/gi, "\n\n# $1\n\n");
+  content = content.replace(/<h2[^>]*>(.*?)<\/h2>/gi, "\n\n## $1\n\n");
+  content = content.replace(/<h3[^>]*>(.*?)<\/h3>/gi, "\n\n### $1\n\n");
+  content = content.replace(/<h4[^>]*>(.*?)<\/h4>/gi, "\n\n#### $1\n\n");
+  content = content.replace(/<h5[^>]*>(.*?)<\/h5>/gi, "\n\n##### $1\n\n");
+  content = content.replace(/<h6[^>]*>(.*?)<\/h6>/gi, "\n\n###### $1\n\n");
   
-  // Convert paragraphs
-  markdown = markdown.replace(/<p[^>]*>(.*?)<\/p>/gi, "\n$1\n");
+  // Keep paragraphs as HTML tags (strip attributes)
+  content = content.replace(/<p[^>]*>/gi, "<p>");
   
-  // Convert lists
-  markdown = markdown.replace(/<ul[^>]*>/gi, "\n");
-  markdown = markdown.replace(/<\/ul>/gi, "\n");
-  markdown = markdown.replace(/<ol[^>]*>/gi, "\n");
-  markdown = markdown.replace(/<\/ol>/gi, "\n");
-  markdown = markdown.replace(/<li[^>]*>(.*?)<\/li>/gi, "• $1\n");
+  // Keep lists as clean HTML (strip attributes)
+  content = content.replace(/<ul[^>]*>/gi, "<ul>");
+  content = content.replace(/<ol[^>]*>/gi, "<ol>");
+  content = content.replace(/<li[^>]*>/gi, "<li>");
   
-  // Convert bold and italic
-  markdown = markdown.replace(/<strong[^>]*>(.*?)<\/strong>/gi, "**$1**");
-  markdown = markdown.replace(/<b[^>]*>(.*?)<\/b>/gi, "**$1**");
-  markdown = markdown.replace(/<em[^>]*>(.*?)<\/em>/gi, "*$1*");
-  markdown = markdown.replace(/<i[^>]*>(.*?)<\/i>/gi, "*$1*");
+  // Keep inline formatting as clean HTML (strip attributes)
+  content = content.replace(/<strong[^>]*>/gi, "<strong>");
+  content = content.replace(/<b[^>]*>/gi, "<strong>");
+  content = content.replace(/<\/b>/gi, "</strong>");
+  content = content.replace(/<em[^>]*>/gi, "<em>");
+  content = content.replace(/<i[^>]*>/gi, "<em>");
+  content = content.replace(/<\/i>/gi, "</em>");
   
-  // Remove any remaining HTML tags
-  markdown = markdown.replace(/<[^>]*>/g, "");
+  // Remove other HTML tags (spans, divs, etc.) but keep their content
+  content = content.replace(/<(?!\/?(p|ul|ol|li|strong|em)(?:>|\s))[^>]*>/gi, "");
   
   // Clean up excessive whitespace
-  markdown = markdown.replace(/\n{3,}/g, "\n\n");
-  markdown = markdown.trim();
+  content = content.replace(/\n{3,}/g, "\n\n");
+  content = content.trim();
   
-  return `=== DOCUMENT CONTENT (Structured) ===
+  return `=== DOCUMENT CONTENT (Structured with HTML formatting) ===
 
-${markdown}`;
+The document below uses markdown-style headings (# H1, ## H2, ### H3) for structure.
+Text content includes HTML formatting that should be preserved in the output:
+- <p>...</p> for paragraphs
+- <ul><li>...</li></ul> for bullet lists
+- <ol><li>...</li></ol> for numbered lists
+- <strong>...</strong> for bold text
+- <em>...</em> for italic text
+
+${content}`;
 }

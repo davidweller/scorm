@@ -26,11 +26,72 @@ function nl2br(s: string): string {
   return escapeHtml(s).replace(/\n/g, "<br />");
 }
 
+/**
+ * Sanitize rich text HTML to allow only safe tags for display.
+ * Allows: p, strong, em, b, i, ul, ol, li, br
+ * Strips all other tags and attributes.
+ */
+function sanitizeRichText(html: string): string {
+  if (!html) return "";
+  
+  // If the content doesn't contain any HTML tags, treat it as plain text
+  if (!/<[^>]+>/.test(html)) {
+    return nl2br(html);
+  }
+  
+  // Define allowed tags (no attributes allowed for security)
+  const allowedTags = new Set(["p", "strong", "em", "b", "i", "ul", "ol", "li", "br"]);
+  
+  // Process HTML by parsing tags
+  let result = "";
+  let i = 0;
+  
+  while (i < html.length) {
+    if (html[i] === "<") {
+      // Find the end of the tag
+      const tagEnd = html.indexOf(">", i);
+      if (tagEnd === -1) {
+        // No closing bracket, escape and continue
+        result += escapeHtml(html[i]);
+        i++;
+        continue;
+      }
+      
+      const tagContent = html.slice(i + 1, tagEnd);
+      const isClosing = tagContent.startsWith("/");
+      const tagNameMatch = tagContent.match(/^\/?([a-zA-Z][a-zA-Z0-9]*)/);
+      
+      if (tagNameMatch) {
+        const tagName = tagNameMatch[1].toLowerCase();
+        if (allowedTags.has(tagName)) {
+          // Output the allowed tag (stripped of attributes)
+          if (isClosing) {
+            result += `</${tagName}>`;
+          } else if (tagName === "br") {
+            result += "<br />";
+          } else {
+            result += `<${tagName}>`;
+          }
+        }
+        // Skip disallowed tags entirely
+      }
+      
+      i = tagEnd + 1;
+    } else {
+      // Regular character - escape it
+      result += escapeHtml(html[i]);
+      i++;
+    }
+  }
+  
+  return result;
+}
+
 export function renderContentBlock(block: Block): string {
   const c = block.data || {};
   if (block.type === "text") {
     const text = typeof c.text === "string" ? c.text : "";
-    return `<div class="content-text reveal">${nl2br(text)}</div>`;
+    return `<div class="content-text reveal">${sanitizeRichText(text)}</div>`;
   }
   if (block.type === "heading") {
     const level = Math.min(6, Math.max(1, Number(c.level) || 2));
@@ -53,13 +114,13 @@ export function renderContentBlock(block: Block): string {
   }
   if (block.type === "key_insight") {
     const text = typeof c.text === "string" ? c.text : "";
-    return `<div class="key-insight reveal"><p>${nl2br(text)}</p></div>`;
+    return `<div class="key-insight reveal">${sanitizeRichText(text)}</div>`;
   }
   if (block.type === "key_point") {
     const text = typeof c.text === "string" ? c.text : "";
     const title = typeof c.title === "string" ? c.title : "";
     const titleHtml = title ? `<p class="content-card-title">${escapeHtml(title)}</p>` : "";
-    return `<div class="content-card reveal">${titleHtml}<div class="content-card-body">${nl2br(text)}</div></div>`;
+    return `<div class="content-card reveal">${titleHtml}<div class="content-card-body">${sanitizeRichText(text)}</div></div>`;
   }
   return "";
 }
@@ -353,6 +414,10 @@ ${buildScormRuntimeScript(scormRuntime)}
     .content-text { margin: 1.2em 0; }
     .content-text p { margin: 0 0 1.2em 0; }
     .content-text p:last-child { margin-bottom: 0; }
+    .content-text ul, .content-text ol { margin: 1em 0; padding-left: 1.5em; }
+    .content-text li { margin: 0.25em 0; }
+    .content-text strong, .content-text b { font-weight: 600; }
+    .content-text em, .content-text i { font-style: italic; }
     .content-heading { margin: 2rem 0 0.5em 0; }
     .content-heading:first-of-type { margin-top: 0; }
     .content-image { margin: 3rem 0; }
@@ -361,9 +426,13 @@ ${buildScormRuntimeScript(scormRuntime)}
     .content-video iframe { width: 100%; aspect-ratio: 16/9; border-radius: 8px; }
     .key-insight { margin: 3rem 0; padding: 1.5rem 1.5rem 1.5rem 1.75rem; border-left: 4px solid var(--brand-accent, #ff7700); background: rgba(0,0,0,0.02); font-size: 1.1rem; line-height: 1.65; border-radius: 0 8px 8px 0; }
     .key-insight p { margin: 0; }
+    .key-insight ul, .key-insight ol { margin: 0.5em 0; padding-left: 1.25em; }
+    .key-insight li { margin: 0.2em 0; }
     .content-card { margin: 3rem 0; padding: 24px 32px; background: #ffffff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
     .content-card-title { font-weight: 600; font-size: 1.1rem; margin: 0 0 0.75em 0; }
     .content-card-body { margin: 0; }
+    .content-card-body ul, .content-card-body ol { margin: 0.5em 0; padding-left: 1.25em; }
+    .content-card-body li { margin: 0.2em 0; }
     .interaction { margin: 4rem 0; padding: 24px 32px; background: #ffffff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
     .interaction .question, .interaction .prompt { margin: 0 0 1rem 0; font-weight: 500; }
     .interaction .options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }

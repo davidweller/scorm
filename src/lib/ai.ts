@@ -197,15 +197,23 @@ Lesson title: ${lessonTitle}
 Respond with a single JSON object with this exact structure. No markdown.
 {
   "contentBlocks": [
-    { "type": "text", "content": { "text": "2-3 sentence intro for this lesson" } },
+    { "type": "text", "content": { "text": "<p>2-3 sentence intro for this lesson</p>" } },
     { "type": "heading", "content": { "level": 2, "text": "Main topic heading" } },
-    { "type": "text", "content": { "text": "Core content paragraph(s). Use \\n for new lines." } },
+    { "type": "text", "content": { "text": "<p>Core content paragraph.</p><p>Another paragraph if needed.</p>" } },
     { "type": "heading", "content": { "level": 3, "text": "Key takeaway or check" } },
-    { "type": "text", "content": { "text": "1-2 sentence wrap-up for this section" } },
+    { "type": "text", "content": { "text": "<p>1-2 sentence wrap-up for this section</p>" } },
     { "type": "heading", "content": { "level": 2, "text": "Summary" } },
-    { "type": "text", "content": { "text": "2-4 sentence summary of the lesson" } }
+    { "type": "text", "content": { "text": "<p>2-4 sentence summary of the lesson</p>" } }
   ]
 }
+
+IMPORTANT HTML formatting rules for text blocks:
+- Wrap each paragraph in <p>...</p> tags
+- Use <ul><li>...</li></ul> for bullet lists
+- Use <ol><li>...</li></ol> for numbered lists
+- Use <strong>...</strong> for bold text
+- Use <em>...</em> for italic text
+
 Use "text" and "heading" only for contentBlocks. Keep content aligned to the lesson and ILOs.${context.targetWordCountPerLesson ? ` Aim for approximately ${context.targetWordCountPerLesson} words total in the text content.` : ""}`;
 
   const res = await client.chat.completions.create({
@@ -337,14 +345,17 @@ export async function regenerateContentBlock(
 
   let typeInstruction = "";
   if (blockType === "text") {
-    typeInstruction = 'Generate a "text" block with { "text": "paragraph content" }. Write 2-4 sentences that fit the lesson context.';
+    typeInstruction = `Generate a "text" block with { "text": "<p>paragraph content</p>" }. Write 2-4 sentences that fit the lesson context.
+Use HTML formatting: <p> for paragraphs, <ul>/<ol>/<li> for lists, <strong> for bold, <em> for italic.`;
   } else if (blockType === "heading") {
     const level = (currentContent.level as number) || 2;
-    typeInstruction = `Generate a "heading" block with { "level": ${level}, "text": "heading text" }. Create a clear, descriptive heading.`;
+    typeInstruction = `Generate a "heading" block with { "level": ${level}, "text": "heading text" }. Create a clear, descriptive heading. No HTML in headings.`;
   } else if (blockType === "key_insight") {
-    typeInstruction = 'Generate a "key_insight" block with { "text": "insight text" }. Write a memorable, impactful statement (1-2 sentences).';
+    typeInstruction = `Generate a "key_insight" block with { "text": "<p>insight text</p>" }. Write a memorable, impactful statement (1-2 sentences).
+Use HTML formatting: <p> for paragraphs, <strong> for bold, <em> for italic.`;
   } else if (blockType === "key_point") {
-    typeInstruction = 'Generate a "key_point" block with { "title": "optional title", "text": "key point content" }. Summarize an important concept.';
+    typeInstruction = `Generate a "key_point" block with { "title": "optional title", "text": "<p>key point content</p>" }. Summarize an important concept.
+Use HTML formatting in text: <p> for paragraphs, <ul>/<ol>/<li> for lists, <strong> for bold, <em> for italic. Title should be plain text.`;
   } else {
     throw new Error(`Cannot regenerate block type: ${blockType}`);
   }

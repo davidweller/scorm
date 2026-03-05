@@ -68,9 +68,9 @@ You must return a JSON object with the following structure:
               "title": "Page title",
               "blocks": [
                 { "category": "content", "type": "heading", "data": { "level": 2, "text": "Heading text" } },
-                { "category": "content", "type": "text", "data": { "text": "Paragraph content..." } },
-                { "category": "content", "type": "key_insight", "data": { "text": "Important insight..." } },
-                { "category": "content", "type": "key_point", "data": { "title": "Key Point", "text": "Point content..." } },
+                { "category": "content", "type": "text", "data": { "text": "<p>Paragraph content...</p>" } },
+                { "category": "content", "type": "key_insight", "data": { "text": "<p>Important insight...</p>" } },
+                { "category": "content", "type": "key_point", "data": { "title": "Key Point", "text": "<p>Point content...</p>" } },
                 { "category": "interaction", "type": "multiple_choice", "data": { "question": "...", "options": ["A", "B", "C", "D"], "correctIndex": 0, "explanation": "..." } },
                 { "category": "interaction", "type": "true_false", "data": { "question": "...", "correct": true, "explanation": "..." } },
                 { "category": "interaction", "type": "reflection", "data": { "prompt": "..." } },
@@ -86,11 +86,20 @@ You must return a JSON object with the following structure:
   ]
 }
 
-Content block types:
-- "text": { "text": "paragraph content" }
-- "heading": { "level": 1|2|3, "text": "heading text" }
-- "key_insight": { "text": "important insight or callout" }
-- "key_point": { "title": "optional title", "text": "key point content" }
+Content block types (IMPORTANT: text fields support HTML formatting):
+- "text": { "text": "<p>HTML formatted content</p><ul><li>List item</li></ul>" }
+- "heading": { "level": 1|2|3, "text": "heading text (plain text, no HTML)" }
+- "key_insight": { "text": "<p>HTML formatted insight</p>" }
+- "key_point": { "title": "optional title (plain text)", "text": "<p>HTML formatted content</p>" }
+
+CRITICAL - HTML Formatting Rules for text fields:
+- Wrap paragraphs in <p>...</p> tags
+- Use <ul><li>...</li></ul> for bullet lists
+- Use <ol><li>...</li></ol> for numbered lists  
+- Use <strong>...</strong> for bold text
+- Use <em>...</em> for italic text
+- Preserve ALL formatting from the source document
+- Multiple paragraphs should each be wrapped in their own <p> tags
 
 Interaction block types:
 - "multiple_choice": { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }
@@ -112,13 +121,15 @@ Guidelines:
 5. For blocks within a page:
    - H2 headings become { category: "content", type: "heading", data: { level: 2, text: "..." } }
    - H3 headings become { category: "content", type: "heading", data: { level: 3, text: "..." } }
-   - Paragraphs become { category: "content", type: "text", data: { text: "..." } }
+   - Paragraphs become { category: "content", type: "text", data: { text: "<p>...</p>" } }
+   - Bullet lists become { category: "content", type: "text", data: { text: "<ul><li>...</li></ul>" } }
    - Keep all content in document order
 6. Convert quiz questions, assessments, and knowledge checks into appropriate interaction types
 7. Look for patterns like "Quiz:", "Question:", "True or False:", "Match the following:", "Flashcards:", "Drag and Drop:" to identify interactions
 8. Extract learning outcomes/objectives if present (often in bullet lists near the beginning)
 9. Preserve ALL of the document's content - do not summarize or skip any text
-10. Include explanations for quiz questions when the document provides answer rationales`;
+10. Include explanations for quiz questions when the document provides answer rationales
+11. PRESERVE ALL FORMATTING: Bold, italic, lists from the source document must appear in the HTML output`;
 
 export async function analyzeCourseDocument(
   client: OpenAI,
