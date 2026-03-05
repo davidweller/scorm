@@ -82,7 +82,7 @@ async function createCourseFromImport(data: ImportedCourseData) {
       audience: data.audience || null,
       tone: data.tone || null,
       ilos: data.ilos.length > 0 ? (data.ilos as Prisma.InputJsonValue) : Prisma.JsonNull,
-      assessmentPlan: data.assessmentPlan || null,
+      assessmentPlan: data.assessmentPlan ? (data.assessmentPlan as Prisma.InputJsonValue) : Prisma.JsonNull,
     },
   });
 
