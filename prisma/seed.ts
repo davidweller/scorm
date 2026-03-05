@@ -26,18 +26,12 @@ async function main() {
                 create: {
                   title: "Introduction",
                   order: 0,
-                  contentBlocks: {
+                  blocks: {
                     create: [
-                      { type: "heading", content: { level: 1, text: "Welcome" }, order: 0 },
-                      { type: "text", content: { text: "This is the first page." }, order: 1 },
+                      { category: "content", type: "heading", data: { level: 1, text: "Welcome" }, order: 0 },
+                      { category: "content", type: "text", data: { text: "This is the first page." }, order: 1 },
+                      { category: "interaction", type: "reflection", data: { prompt: "What do you hope to learn?" }, order: 2 },
                     ],
-                  },
-                  interactionBlocks: {
-                    create: {
-                      type: "reflection",
-                      config: { prompt: "What do you hope to learn?" },
-                      order: 0,
-                    },
                   },
                 },
               },
