@@ -55,6 +55,7 @@ export async function PATCH(
       settings,
       ilos,
       assessmentPlan,
+      interactionsReviewedAt,
     } = body as {
       title?: string;
       overview?: string;
@@ -66,6 +67,7 @@ export async function PATCH(
       settings?: unknown;
       ilos?: unknown;
       assessmentPlan?: unknown;
+      interactionsReviewedAt?: string;
     };
     const data: Prisma.CourseUpdateInput = {};
     if (title !== undefined) data.title = typeof title === "string" ? title.trim() : undefined;
@@ -78,6 +80,7 @@ export async function PATCH(
     if (settings !== undefined) data.settings = settings as Prisma.InputJsonValue;
     if (ilos !== undefined) data.ilos = ilos as Prisma.InputJsonValue;
     if (assessmentPlan !== undefined) data.assessmentPlan = assessmentPlan as Prisma.InputJsonValue;
+    if (interactionsReviewedAt !== undefined) data.interactionsReviewedAt = new Date(interactionsReviewedAt);
 
     const course = await prisma.course.update({
       where: { id: courseId },

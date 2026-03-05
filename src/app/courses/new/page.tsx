@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DEFAULT_BRAND_CONFIG } from "@/types/branding";
+import ImportCourseModal from "@/components/course-import/ImportCourseModal";
 
 export default function NewCoursePage() {
   const router = useRouter();
@@ -25,6 +26,11 @@ export default function NewCoursePage() {
   const [showByoKeys, setShowByoKeys] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  function handleImportComplete(courseId: string) {
+    router.push(`/courses/${courseId}/blueprint`);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,10 +80,29 @@ export default function NewCoursePage() {
   return (
     <main className="min-h-screen p-8">
       <div className="mx-auto max-w-2xl">
-        <h1 className="text-2xl font-bold">Create course</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Add title, audience, and options. You’ll define the blueprint next.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Create course</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Add title, audience, and options. You&apos;ll define the blueprint next.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+              />
+            </svg>
+            Import from Word
+          </button>
+        </div>
         <form onSubmit={handleSubmit} className="mt-6 space-y-6">
           {error && (
             <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>
@@ -303,6 +328,13 @@ export default function NewCoursePage() {
           </div>
         </form>
       </div>
+
+      <ImportCourseModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportComplete={handleImportComplete}
+        openaiKey={openaiKey || undefined}
+      />
     </main>
   );
 }

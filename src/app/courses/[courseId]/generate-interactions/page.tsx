@@ -417,12 +417,20 @@ export default function GenerateInteractionsPage() {
         )}
 
         <div className="mt-10 flex gap-2">
-          <Link
-            href={`/courses/${courseId}/review`}
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch(`/api/courses/${courseId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ interactionsReviewedAt: new Date().toISOString() }),
+              });
+              window.location.href = `/courses/${courseId}/review`;
+            }}
             className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
             Review course →
-          </Link>
+          </button>
           <Link
             href={`/courses/${courseId}/edit`}
             className="rounded border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"

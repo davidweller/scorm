@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 interface CourseSettings {
@@ -12,6 +12,7 @@ interface CourseSettings {
 
 export default function SettingsPage() {
   const params = useParams();
+  const router = useRouter();
   const courseId = params.courseId as string;
 
   const [loading, setLoading] = useState(true);
@@ -30,6 +31,7 @@ export default function SettingsPage() {
   const [newApiKey, setNewApiKey] = useState("");
   const [hasGeminiKey, setHasGeminiKey] = useState(false);
   const [newGeminiKey, setNewGeminiKey] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const loadCourse = useCallback(async () => {
     setError(null);
@@ -137,6 +139,25 @@ export default function SettingsPage() {
       setError(e instanceof Error ? e.message : "Failed to clear key");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("Are you sure you want to delete this course? This action cannot be undone.")) {
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/courses/${courseId}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Failed to delete course");
+      }
+      router.push("/courses");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete course");
+      setDeleting(false);
     }
   }
 
@@ -384,6 +405,21 @@ export default function SettingsPage() {
             {saving ? "Saving…" : "Save settings"}
           </button>
         </div>
+
+        <section className="space-y-4 border-t border-gray-200 pt-8">
+          <h2 className="text-lg font-semibold text-red-600">Danger zone</h2>
+          <p className="text-sm text-gray-500">
+            Permanently delete this course and all its content. This action cannot be undone.
+          </p>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="rounded border border-red-600 bg-white px-5 py-2.5 text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            {deleting ? "Deleting…" : "Delete course"}
+          </button>
+        </section>
       </div>
     </main>
   );

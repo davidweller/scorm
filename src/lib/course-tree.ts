@@ -240,9 +240,17 @@ export function getFlowCompletionV2(course: CourseApiResponse): FlowCompletionV2
   })();
 
   const interactions: StageCompletion = (() => {
-    if (!allPagesHaveContent) {
+    const interactionsReviewedAt = (course as { interactionsReviewedAt?: string }).interactionsReviewedAt;
+    
+    if (!hasContent && !hasInteractions) {
       return { status: "not_started", subtext: "Generate lessons first", isComplete: false };
     }
+    
+    // If user has reviewed the interactions page, mark as complete
+    if (interactionsReviewedAt) {
+      return { status: "complete", subtext: "Interactions reviewed", isComplete: true };
+    }
+    
     if (!hasInteractions) {
       return { status: "not_started", subtext: "No interactions yet", isComplete: false };
     }

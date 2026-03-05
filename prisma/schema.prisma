@@ -23,6 +23,7 @@ model Course {
   ilos             Json?    // string[] learning outcomes
   assessmentPlan   Json?    // string or { summary, placements } for blueprint
   interactionConfig Json?   // { enabledTypes, density, placement, includeExplanations }
+  interactionsReviewedAt DateTime?
   lastPreviewedAt  DateTime?
   lastExportedAt   DateTime?
   createdAt        DateTime @default(now())
