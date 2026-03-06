@@ -15,6 +15,8 @@ import type {
   DialogCardsConfig,
 } from "@/types/course";
 
+const IMPORT_MODEL = process.env.OPENAI_IMPORT_MODEL || "gpt-5.2";
+
 export interface ImportedBlock {
   category: "content" | "interaction";
   type: ContentBlockType | InteractionBlockType;
@@ -46,123 +48,121 @@ export interface ImportedCourseData {
   modules: ImportedModule[];
 }
 
-const SYSTEM_PROMPT = `You are an expert instructional designer and course analyst. Your task is to analyze a Word document and extract a complete e-learning course structure.
+const SYSTEM_PROMPT = `You are an expert instructional designer. Analyze a course document and extract the complete course structure as JSON.
 
-You must return a JSON object with the following structure:
+DOCUMENT STRUCTURE:
+- Content BEFORE "Module 1" contains metadata: course title, overview, learning outcomes (ILOs), audience, etc.
+- Course content starts at "Module 1" (or "# Module 1")
+- Each "Module X" heading marks a new module
+- All content within a module goes on a SINGLE page
 
+REQUIRED OUTPUT FORMAT:
 {
-  "title": "Course title extracted from document",
-  "overview": "2-4 sentence course description/overview",
-  "audience": "Target audience if mentioned (e.g., 'corporate professionals', 'undergraduate students')",
-  "tone": "One of: formal, conversational, technical, friendly - based on document style",
+  "title": "Course title from document",
+  "overview": "2-4 sentence course description",
+  "audience": "Target audience if mentioned",
+  "tone": "formal|conversational|technical|friendly",
   "ilos": ["Learning outcome 1", "Learning outcome 2", ...],
-  "assessmentPlan": "Brief description of assessment approach if mentioned",
+  "assessmentPlan": "Assessment approach if mentioned",
   "modules": [
     {
-      "title": "Module 1 title",
-      "lessons": [
-        {
-          "title": "Lesson 1.1 title",
-          "pages": [
-            {
-              "title": "Page title",
-              "blocks": [
-                { "category": "content", "type": "heading", "data": { "level": 2, "text": "Heading text" } },
-                { "category": "content", "type": "text", "data": { "text": "<p>Paragraph content...</p>" } },
-                { "category": "content", "type": "key_insight", "data": { "text": "<p>Important insight...</p>" } },
-                { "category": "content", "type": "key_point", "data": { "title": "Key Point", "text": "<p>Point content...</p>" } },
-                { "category": "interaction", "type": "multiple_choice", "data": { "question": "...", "options": ["A", "B", "C", "D"], "correctIndex": 0, "explanation": "..." } },
-                { "category": "interaction", "type": "true_false", "data": { "question": "...", "correct": true, "explanation": "..." } },
-                { "category": "interaction", "type": "reflection", "data": { "prompt": "..." } },
-                { "category": "interaction", "type": "drag_and_drop", "data": { "question": "...", "items": [...], "correctOrder": [...], "explanation": "..." } },
-                { "category": "interaction", "type": "matching", "data": { "question": "...", "pairs": [{"left": "...", "right": "..."}], "explanation": "..." } },
-                { "category": "interaction", "type": "dialog_cards", "data": { "title": "...", "cards": [{"front": "...", "back": "..."}] } }
-              ]
-            }
+      "title": "Module 1 - Title Here",
+      "lessons": [{
+        "title": "Module 1 - Title Here",
+        "pages": [{
+          "title": "Module 1 - Title Here",
+          "blocks": [
+            { "category": "content", "type": "text", "data": { "text": "<p>First paragraph of actual content...</p>" } },
+            { "category": "content", "type": "heading", "data": { "level": 2, "text": "Section Heading" } },
+            { "category": "content", "type": "text", "data": { "text": "<p>More paragraph content...</p>" } }
           ]
-        }
-      ]
+        }]
+      }]
     }
   ]
 }
 
-Content block types (IMPORTANT: text fields support HTML formatting):
-- "text": { "text": "<p>HTML formatted content</p><ul><li>List item</li></ul>" }
-- "heading": { "level": 1|2|3, "text": "heading text (plain text, no HTML)" }
-- "image": { "url": "https://...", "alt": "descriptive alt text based on context" }
-- "key_insight": { "text": "<p>HTML formatted insight</p>" }
-- "key_point": { "title": "optional title (plain text)", "text": "<p>HTML formatted content</p>" }
-- "table": { "html": "<table><thead><tr><th>Header</th></tr></thead><tbody><tr><td>Cell</td></tr></tbody></table>" }
+CONTENT BLOCK TYPES - CRITICAL: Every paragraph becomes a "text" block with category "content":
+- "text": { "text": "<p>The actual paragraph text goes here</p>" } - USE FOR ALL PARAGRAPHS
+- "text": { "text": "<ul><li>Item 1</li><li>Item 2</li></ul>" } - USE FOR BULLET LISTS
+- "text": { "text": "<ol><li>Step 1</li><li>Step 2</li></ol>" } - USE FOR NUMBERED LISTS
+- "heading": { "level": 2, "text": "Heading text" } - USE FOR H2/## HEADINGS
+- "heading": { "level": 3, "text": "Subheading text" } - USE FOR H3/### HEADINGS
+- "key_insight": { "text": "<p>Important insight text</p>" }
+- "key_point": { "title": "optional title", "text": "<p>Point content</p>" }
+- "table": { "html": "<table>...</table>" }
 
-CRITICAL - HTML Formatting Rules for text fields:
-- Wrap paragraphs in <p>...</p> tags
-- Use <ul><li>...</li></ul> for bullet lists
-- Use <ol><li>...</li></ol> for numbered lists  
-- Use <strong>...</strong> for bold text
-- Use <em>...</em> for italic text
-- Preserve ALL formatting from the source document
-- Multiple paragraphs should each be wrapped in their own <p> tags
-- TABLES: When the document contains tables, create a "table" block with the full table HTML preserved
-
-Interaction block types:
+INTERACTION BLOCK TYPES (for quizzes/questions):
 - "multiple_choice": { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }
-- "true_false": { "question": "statement", "correct": true|false, "explanation": "..." }
-- "reflection": { "prompt": "open-ended question" }
-- "drag_and_drop": { "question": "...", "items": ["item1","item2",...], "correctOrder": [0,1,2,...], "explanation": "..." }
-- "matching": { "question": "...", "pairs": [{"left":"term","right":"definition"},...], "explanation": "..." }
-- "dialog_cards": { "title": "optional", "cards": [{"front":"prompt","back":"answer"},...] }
+- "true_false": { "question": "...", "correct": true|false, "explanation": "..." }
+- "reflection": { "prompt": "..." }
+- "drag_and_drop": { "question": "...", "items": [...], "correctOrder": [...], "explanation": "..." }
+- "matching": { "question": "...", "pairs": [{"left":"...","right":"..."}], "explanation": "..." }
+- "dialog_cards": { "title": "...", "cards": [{"front":"...","back":"..."}] }
 
-Guidelines:
-1. Extract the course title from the document's main heading or title
-2. SIMPLE STRUCTURE: Create one module per H1 heading. Each module has one lesson. Each lesson has one page.
-3. CRITICAL: Everything between one H1 heading and the next H1 heading = ONE page. All the H2s, H3s, paragraphs, quizzes - everything goes on that single page as blocks.
-4. Structure for each H1 section:
-   - Module title = the H1 text
-   - Lesson title = same as module title
-   - Page title = same as module title  
-   - Page blocks = ALL content from that H1 section (can be 50, 100+ blocks - that's fine)
-5. For blocks within a page:
-   - H2 headings become { category: "content", type: "heading", data: { level: 2, text: "..." } }
-   - H3 headings become { category: "content", type: "heading", data: { level: 3, text: "..." } }
-   - Paragraphs become { category: "content", type: "text", data: { text: "<p>...</p>" } }
-   - Bullet lists become { category: "content", type: "text", data: { text: "<ul><li>...</li></ul>" } }
-   - Images marked as [IMAGE:id:url] become { category: "content", type: "image", data: { url: "the url", alt: "descriptive text" } }
-   - Keep all content in document order
-6. Convert quiz questions, assessments, and knowledge checks into appropriate interaction types
-7. Look for patterns like "Quiz:", "Question:", "True or False:", "Match the following:", "Flashcards:", "Drag and Drop:" to identify interactions
-8. Extract learning outcomes/objectives if present (often in bullet lists near the beginning)
-9. Preserve ALL of the document's content - do not summarize or skip any text
-10. Include explanations for quiz questions when the document provides answer rationales
-11. PRESERVE ALL FORMATTING: Bold, italic, lists from the source document must appear in the HTML output
-12. IMAGES: When you see [IMAGE:id:url] markers, create image blocks at that position with the provided URL and generate descriptive alt text based on the surrounding content context`;
+CRITICAL RULES - YOU MUST FOLLOW THESE:
+1. EVERY paragraph of text MUST become a block: { "category": "content", "type": "text", "data": { "text": "<p>actual paragraph content here</p>" } }
+2. DO NOT skip or summarize - include the FULL TEXT of every single paragraph from the document
+3. Each module = 1 lesson = 1 page (flat structure)
+4. H2 headings (##) become: { "category": "content", "type": "heading", "data": { "level": 2, "text": "heading text" } }
+5. H3 headings (###) become: { "category": "content", "type": "heading", "data": { "level": 3, "text": "heading text" } }
+6. Bullet lists become: { "category": "content", "type": "text", "data": { "text": "<ul><li>item</li></ul>" } }
+7. Numbered lists become: { "category": "content", "type": "text", "data": { "text": "<ol><li>item</li></ol>" } }
+8. Keep content in document order
+9. Look for quiz patterns: "Quiz:", "Question:", "True or False:", "Match:", "Flashcards:"
+10. Preserve formatting: <strong> for bold, <em> for italic
+11. A module with substantial content should have 20-100+ blocks. If you only have a few blocks, you're missing content!`;
 
 export async function analyzeCourseDocument(
   client: OpenAI,
   documentContent: string
 ): Promise<ImportedCourseData> {
-  const userPrompt = `Analyze this course document and extract the complete course structure:
-
-${documentContent}
-
-Return a complete JSON object with the course structure. Be thorough - extract ALL content, quizzes, and interactions from the document.`;
-
+  console.log(`[Import] Analyzing document (${documentContent.length} chars) with model: ${IMPORT_MODEL}`);
+  console.log(`[Import] Starting API call at ${new Date().toISOString()}...`);
+  
+  const startTime = Date.now();
+  
+  // Determine token parameter based on model - newer models use max_completion_tokens
+  const isGpt5Model = IMPORT_MODEL.startsWith("gpt-5");
+  const tokenParams = isGpt5Model 
+    ? { max_completion_tokens: 65536 }
+    : { max_tokens: 16384 };
+  
   const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: IMPORT_MODEL,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
+      { 
+        role: "user", 
+        content: `Analyze this course document and extract the complete structure as JSON:\n\n${documentContent}` 
+      },
     ],
     response_format: { type: "json_object" },
-    max_tokens: 16000,
+    ...tokenParams,
   });
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`[Import] API call completed in ${elapsed}s`);
 
   const text = response.choices[0]?.message?.content;
   if (!text) {
     throw new Error("Empty AI response when analyzing document");
   }
 
-  const parsed = JSON.parse(text) as ImportedCourseData;
-  return validateAndNormalizeImportedCourse(parsed);
+  console.log(`[Import] Received response (${text.length} chars), finish_reason: ${response.choices[0]?.finish_reason}`);
+
+  try {
+    const parsed = JSON.parse(text) as ImportedCourseData;
+    const result = validateAndNormalizeImportedCourse(parsed);
+    
+    const counts = countImportedContent(result);
+    console.log(`[Import] Extracted: ${counts.modules} modules, ${counts.lessons} lessons, ${counts.pages} pages, ${counts.contentBlocks} content blocks, ${counts.interactions} interactions`);
+    
+    return result;
+  } catch (e) {
+    const parseError = e instanceof Error ? e.message : "Unknown parse error";
+    throw new Error(`Failed to parse AI response as JSON: ${parseError}`);
+  }
 }
 
 function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedCourseData {
@@ -194,10 +194,21 @@ function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedC
         if (!page.title) page.title = "Untitled Page";
         if (!Array.isArray(page.blocks)) page.blocks = [];
 
+        const originalCount = page.blocks.length;
         page.blocks = page.blocks.filter((block) => {
-          if (!block.category || !block.type || !block.data) return false;
-          return validateBlock(block);
+          if (!block.category || !block.type || !block.data) {
+            console.log(`[Import] Filtering block - missing fields:`, { category: block.category, type: block.type, hasData: !!block.data });
+            return false;
+          }
+          const valid = validateBlock(block);
+          if (!valid) {
+            console.log(`[Import] Filtering invalid block:`, { category: block.category, type: block.type });
+          }
+          return valid;
         });
+        if (page.blocks.length !== originalCount) {
+          console.log(`[Import] Filtered ${originalCount - page.blocks.length} blocks from page "${page.title}"`);
+        }
       }
     }
   }
@@ -205,18 +216,12 @@ function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedC
   return data;
 }
 
-const VALID_CONTENT_TYPES = new Set(["text", "heading", "image", "video_embed", "key_insight", "key_point", "table"]);
+const VALID_CONTENT_TYPES = new Set(["text", "heading", "video_embed", "key_insight", "key_point", "table"]);
 const VALID_INTERACTION_TYPES = new Set(["multiple_choice", "true_false", "reflection", "drag_and_drop", "matching", "dialog_cards"]);
 
 function validateBlock(block: ImportedBlock): boolean {
   if (block.category === "content") {
     if (!VALID_CONTENT_TYPES.has(block.type)) return false;
-    // Validate image blocks have required url field
-    if (block.type === "image") {
-      const data = block.data as { url?: string; alt?: string };
-      return typeof data.url === "string" && data.url.length > 0;
-    }
-    // Validate table blocks have required html field
     if (block.type === "table") {
       const data = block.data as { html?: string };
       return typeof data.html === "string" && data.html.length > 0;

@@ -69,12 +69,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Only image files are allowed" }, { status: 400 });
     }
 
+    const maxSize = 4.5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return NextResponse.json(
+        { error: `File too large. Maximum size is 4.5MB, got ${(file.size / 1024 / 1024).toFixed(2)}MB` },
+        { status: 400 }
+      );
+    }
+
     const ext = file.name.split(".").pop() || "png";
     const pathname = `media/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
 
+    console.log(`Uploading file: ${file.name}, size: ${file.size}, type: ${file.type}`);
+    
     const { url } = await uploadBlob(pathname, file, {
       contentType: file.type,
     });
+
+    console.log(`Upload successful: ${url}`);
 
     const media = await prisma.media.create({
       data: {
@@ -90,7 +102,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ media });
   } catch (e) {
     console.error("Failed to upload media:", e);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    const errorMessage = e instanceof Error ? e.message : "Upload failed";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 

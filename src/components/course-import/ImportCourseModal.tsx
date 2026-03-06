@@ -73,6 +73,12 @@ export default function ImportCourseModal({
       return;
     }
 
+    const maxSize = 4.5 * 1024 * 1024; // 4.5MB
+    if (selectedFile.size > maxSize) {
+      setError(`File too large. Maximum size is 4.5MB, your file is ${(selectedFile.size / 1024 / 1024).toFixed(1)}MB.`);
+      return;
+    }
+
     setFile(selectedFile);
     setError(null);
     setStep("analyzing");
@@ -221,7 +227,7 @@ export default function ImportCourseModal({
                           <span className="font-medium text-blue-600">Click to upload</span> or drag
                           and drop
                         </p>
-                        <p className="mt-1 text-xs text-gray-500">Word document (.docx) up to 10MB</p>
+                        <p className="mt-1 text-xs text-gray-500">Word document (.docx) up to 4.5MB</p>
                       </div>
 
                       <div className="flex items-center gap-2 text-sm text-gray-500">

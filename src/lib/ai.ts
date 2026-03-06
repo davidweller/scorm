@@ -4,10 +4,13 @@
 
 import OpenAI from "openai";
 
-export function getOpenAIClient(apiKey?: string | null): OpenAI | null {
+export function getOpenAIClient(apiKey?: string | null, options?: { timeout?: number }): OpenAI | null {
   const key = apiKey?.trim() || process.env.OPENAI_API_KEY?.trim();
   if (!key) return null;
-  return new OpenAI({ apiKey: key });
+  return new OpenAI({ 
+    apiKey: key,
+    timeout: options?.timeout ?? 60000, // Default 60s, can be overridden
+  });
 }
 
 export interface BlueprintContext {

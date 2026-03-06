@@ -1,6 +1,6 @@
 /**
  * DOCX parsing utilities using mammoth.js
- * Extracts text content, document structure, and images from Word documents.
+ * Extracts text content and document structure from Word documents.
  */
 
 import mammoth from "mammoth";
@@ -16,62 +16,39 @@ export interface ParsedListItem {
   isNumbered: boolean;
 }
 
-export interface ExtractedImage {
-  id: string;
-  base64: string;
-  contentType: string;
-}
-
 export interface ParsedDocument {
   rawText: string;
   html: string;
   headings: ParsedHeading[];
   paragraphs: string[];
   lists: ParsedListItem[];
-  images: ExtractedImage[];
-}
-
-interface MammothImageElement {
-  read(encoding: "base64"): Promise<string>;
-  contentType: string;
 }
 
 export async function parseDocx(buffer: ArrayBuffer): Promise<ParsedDocument> {
   const nodeBuffer = Buffer.from(buffer);
   
-  // Extract images with custom converter that captures base64 data
-  let imageIndex = 0;
-  const images: ExtractedImage[] = [];
-  
-  // Mammoth doesn't have TypeScript definitions for images.inline
+  // Convert to HTML, ignoring images
+  // Use type assertion for mammoth's image handling which isn't fully typed
   const mammothAny = mammoth as unknown as {
     convertToHtml: (
       input: { buffer: Buffer },
       options?: { convertImage?: unknown }
     ) => Promise<{ value: string }>;
     images: {
-      inline: (fn: (element: MammothImageElement) => Promise<{ src: string }>) => unknown;
+      inline: (fn: () => Promise<{ src: string }>) => unknown;
     };
   };
   
   const result = await mammothAny.convertToHtml(
     { buffer: nodeBuffer },
     {
-      convertImage: mammothAny.images.inline((element: MammothImageElement) => {
-        const id = `img_${imageIndex++}`;
-        return element.read("base64").then((base64Data: string) => {
-          images.push({
-            id,
-            base64: base64Data,
-            contentType: element.contentType,
-          });
-          // Replace image with placeholder marker
-          return { src: `[IMAGE:${id}]` };
-        });
+      convertImage: mammothAny.images.inline(() => {
+        // Skip all images - return empty element
+        return Promise.resolve({ src: "" });
       }),
     }
   );
-  const html = result.value as string;
+  const html = result.value;
 
   const textResult = await mammoth.extractRawText({ buffer: nodeBuffer });
   const rawText = textResult.value;
@@ -86,7 +63,6 @@ export async function parseDocx(buffer: ArrayBuffer): Promise<ParsedDocument> {
     headings,
     paragraphs,
     lists,
-    images,
   };
 }
 
@@ -158,14 +134,7 @@ function stripHtmlTags(html: string): string {
   return html.replace(/<[^>]*>/g, "");
 }
 
-export function formatDocumentForAI(
-  doc: ParsedDocument,
-  imageUrlMap?: Map<string, string>
-): string {
-  // Convert HTML to a format that preserves structure for AI
-  // Headings become markdown-style markers so AI understands hierarchy
-  // Lists and inline formatting are preserved as clean HTML for direct output
-  
+export function formatDocumentForAI(doc: ParsedDocument): string {
   let content = doc.html;
   
   // Convert headings to markdown format (for structure recognition)
@@ -192,17 +161,6 @@ export function formatDocumentForAI(
   content = content.replace(/<i[^>]*>/gi, "<em>");
   content = content.replace(/<\/i>/gi, "</em>");
   
-  // Replace image placeholders with actual URLs if provided
-  if (imageUrlMap && imageUrlMap.size > 0) {
-    content = content.replace(
-      /<img[^>]*src="\[IMAGE:(img_\d+)\]"[^>]*>/gi,
-      (_, imgId) => {
-        const url = imageUrlMap.get(imgId);
-        return url ? `[IMAGE:${imgId}:${url}]` : "";
-      }
-    );
-  }
-  
   // Preserve table tags (strip attributes for security)
   content = content.replace(/<table[^>]*>/gi, "<table>");
   content = content.replace(/<thead[^>]*>/gi, "<thead>");
@@ -211,24 +169,15 @@ export function formatDocumentForAI(
   content = content.replace(/<th[^>]*>/gi, "<th>");
   content = content.replace(/<td[^>]*>/gi, "<td>");
   
-  // Remove other HTML tags (spans, divs, etc.) but keep their content
-  // Also preserve image markers [IMAGE:...] 
+  // Remove other HTML tags (spans, divs, images, etc.) but keep their content
+  content = content.replace(/<img[^>]*>/gi, ""); // Remove image tags completely
   content = content.replace(/<(?!\/?(p|ul|ol|li|strong|em|table|thead|tbody|tr|th|td)(?:>|\s))[^>]*>/gi, "");
   
   // Clean up excessive whitespace
   content = content.replace(/\n{3,}/g, "\n\n");
   content = content.trim();
   
-  // Build the header with image instructions if images are present
-  const hasImages = imageUrlMap && imageUrlMap.size > 0;
-  const imageInstructions = hasImages
-    ? `
-- Images are marked as [IMAGE:id:url] - create image blocks at these positions
-  Example: [IMAGE:img_0:https://...] becomes { "category": "content", "type": "image", "data": { "url": "https://...", "alt": "descriptive alt text" } }
-- Generate descriptive alt text for each image based on its context in the document`
-    : "";
-  
-  return `=== DOCUMENT CONTENT (Structured with HTML formatting) ===
+  return `=== DOCUMENT CONTENT ===
 
 The document below uses markdown-style headings (# H1, ## H2, ### H3) for structure.
 Text content includes HTML formatting that should be preserved in the output:
@@ -237,7 +186,7 @@ Text content includes HTML formatting that should be preserved in the output:
 - <ol><li>...</li></ol> for numbered lists
 - <strong>...</strong> for bold text
 - <em>...</em> for italic text
-- <table><thead><tr><th>...</th></tr></thead><tbody><tr><td>...</td></tr></tbody></table> for tables${imageInstructions}
+- <table>...</table> for tables
 
 ${content}`;
 }

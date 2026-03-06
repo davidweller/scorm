@@ -5,7 +5,9 @@ import { parseDocx, formatDocumentForAI } from "@/lib/docx-parser";
 import { analyzeCourseDocument, type ImportedCourseData } from "@/lib/ai-course-import";
 import { getOpenAIClient } from "@/lib/ai";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+export const maxDuration = 300; // 5 minutes for large document processing
+
+const MAX_FILE_SIZE = 4.5 * 1024 * 1024; // 4.5MB (Vercel serverless limit)
 
 export async function POST(request: Request) {
   try {
@@ -46,12 +48,13 @@ export async function POST(request: Request) {
 
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: "File too large. Maximum size is 10MB." },
+        { error: `File too large. Maximum size is 4.5MB, your file is ${(file.size / 1024 / 1024).toFixed(1)}MB.` },
         { status: 400 }
       );
     }
 
-    const client = getOpenAIClient(apiKey);
+    // Use a longer timeout for document import (10 minutes) since large documents can take a while
+    const client = getOpenAIClient(apiKey, { timeout: 600000 });
     if (!client) {
       return NextResponse.json(
         { error: "OpenAI API key not configured. Add OPENAI_API_KEY to .env or provide your own key." },
@@ -62,7 +65,6 @@ export async function POST(request: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const parsedDoc = await parseDocx(arrayBuffer);
     const documentContent = formatDocumentForAI(parsedDoc);
-
     const importedData = await analyzeCourseDocument(client, documentContent);
 
     return NextResponse.json({ preview: importedData });
@@ -74,7 +76,6 @@ export async function POST(request: Request) {
 }
 
 async function createCourseFromImport(data: ImportedCourseData) {
-  // Create the course first (outside transaction for speed)
   const course = await prisma.course.create({
     data: {
       title: data.title,
@@ -87,7 +88,6 @@ async function createCourseFromImport(data: ImportedCourseData) {
   });
 
   try {
-    // Create modules, lessons, pages, and blocks sequentially but without long transaction
     for (let moduleIdx = 0; moduleIdx < data.modules.length; moduleIdx++) {
       const moduleData = data.modules[moduleIdx];
       const moduleRecord = await prisma.module.create({
@@ -118,7 +118,6 @@ async function createCourseFromImport(data: ImportedCourseData) {
             },
           });
 
-          // Batch create blocks for each page
           if (pageData.blocks.length > 0) {
             await prisma.block.createMany({
               data: pageData.blocks.map((blockData, blockIdx) => ({
@@ -136,7 +135,6 @@ async function createCourseFromImport(data: ImportedCourseData) {
 
     return course;
   } catch (error) {
-    // If something fails, clean up the partially created course
     await prisma.course.delete({ where: { id: course.id } }).catch(() => {});
     throw error;
   }
