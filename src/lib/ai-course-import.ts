@@ -89,8 +89,10 @@ You must return a JSON object with the following structure:
 Content block types (IMPORTANT: text fields support HTML formatting):
 - "text": { "text": "<p>HTML formatted content</p><ul><li>List item</li></ul>" }
 - "heading": { "level": 1|2|3, "text": "heading text (plain text, no HTML)" }
+- "image": { "url": "https://...", "alt": "descriptive alt text based on context" }
 - "key_insight": { "text": "<p>HTML formatted insight</p>" }
 - "key_point": { "title": "optional title (plain text)", "text": "<p>HTML formatted content</p>" }
+- "table": { "html": "<table><thead><tr><th>Header</th></tr></thead><tbody><tr><td>Cell</td></tr></tbody></table>" }
 
 CRITICAL - HTML Formatting Rules for text fields:
 - Wrap paragraphs in <p>...</p> tags
@@ -100,6 +102,7 @@ CRITICAL - HTML Formatting Rules for text fields:
 - Use <em>...</em> for italic text
 - Preserve ALL formatting from the source document
 - Multiple paragraphs should each be wrapped in their own <p> tags
+- TABLES: When the document contains tables, create a "table" block with the full table HTML preserved
 
 Interaction block types:
 - "multiple_choice": { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }
@@ -123,13 +126,15 @@ Guidelines:
    - H3 headings become { category: "content", type: "heading", data: { level: 3, text: "..." } }
    - Paragraphs become { category: "content", type: "text", data: { text: "<p>...</p>" } }
    - Bullet lists become { category: "content", type: "text", data: { text: "<ul><li>...</li></ul>" } }
+   - Images marked as [IMAGE:id:url] become { category: "content", type: "image", data: { url: "the url", alt: "descriptive text" } }
    - Keep all content in document order
 6. Convert quiz questions, assessments, and knowledge checks into appropriate interaction types
 7. Look for patterns like "Quiz:", "Question:", "True or False:", "Match the following:", "Flashcards:", "Drag and Drop:" to identify interactions
 8. Extract learning outcomes/objectives if present (often in bullet lists near the beginning)
 9. Preserve ALL of the document's content - do not summarize or skip any text
 10. Include explanations for quiz questions when the document provides answer rationales
-11. PRESERVE ALL FORMATTING: Bold, italic, lists from the source document must appear in the HTML output`;
+11. PRESERVE ALL FORMATTING: Bold, italic, lists from the source document must appear in the HTML output
+12. IMAGES: When you see [IMAGE:id:url] markers, create image blocks at that position with the provided URL and generate descriptive alt text based on the surrounding content context`;
 
 export async function analyzeCourseDocument(
   client: OpenAI,
@@ -200,12 +205,23 @@ function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedC
   return data;
 }
 
-const VALID_CONTENT_TYPES = new Set(["text", "heading", "image", "video_embed", "key_insight", "key_point"]);
+const VALID_CONTENT_TYPES = new Set(["text", "heading", "image", "video_embed", "key_insight", "key_point", "table"]);
 const VALID_INTERACTION_TYPES = new Set(["multiple_choice", "true_false", "reflection", "drag_and_drop", "matching", "dialog_cards"]);
 
 function validateBlock(block: ImportedBlock): boolean {
   if (block.category === "content") {
-    return VALID_CONTENT_TYPES.has(block.type);
+    if (!VALID_CONTENT_TYPES.has(block.type)) return false;
+    // Validate image blocks have required url field
+    if (block.type === "image") {
+      const data = block.data as { url?: string; alt?: string };
+      return typeof data.url === "string" && data.url.length > 0;
+    }
+    // Validate table blocks have required html field
+    if (block.type === "table") {
+      const data = block.data as { html?: string };
+      return typeof data.html === "string" && data.html.length > 0;
+    }
+    return true;
   }
   if (block.category === "interaction") {
     if (!VALID_INTERACTION_TYPES.has(block.type)) return false;

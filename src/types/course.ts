@@ -8,7 +8,8 @@ export type ContentBlockType =
   | "image"
   | "video_embed"
   | "key_insight"
-  | "key_point";
+  | "key_point"
+  | "table";
 export type InteractionBlockType =
   | "multiple_choice"
   | "true_false"

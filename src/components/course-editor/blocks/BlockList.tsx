@@ -93,6 +93,7 @@ const CONTENT_TYPES: { type: ContentBlockType; label: string }[] = [
   { type: "video_embed", label: "Video" },
   { type: "key_insight", label: "Key insight" },
   { type: "key_point", label: "Key point" },
+  { type: "table", label: "Table" },
 ];
 
 const INTERACTION_TYPES: { type: InteractionBlockType; label: string }[] = [
@@ -113,6 +114,7 @@ function getDefaultData(category: "content" | "interaction", type: string): Reco
       case "video_embed": return { url: "" };
       case "key_insight": return { text: "" };
       case "key_point": return { title: "", text: "" };
+      case "table": return { html: "" };
       default: return {};
     }
   } else {

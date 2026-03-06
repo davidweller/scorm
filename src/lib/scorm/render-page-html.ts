@@ -40,7 +40,7 @@ function sanitizeRichText(html: string): string {
   }
   
   // Define allowed tags (no attributes allowed for security)
-  const allowedTags = new Set(["p", "strong", "em", "b", "i", "ul", "ol", "li", "br"]);
+  const allowedTags = new Set(["p", "strong", "em", "b", "i", "ul", "ol", "li", "br", "table", "thead", "tbody", "tr", "th", "td"]);
   
   // Process HTML by parsing tags
   let result = "";
@@ -121,6 +121,11 @@ export function renderContentBlock(block: Block): string {
     const title = typeof c.title === "string" ? c.title : "";
     const titleHtml = title ? `<p class="content-card-title">${escapeHtml(title)}</p>` : "";
     return `<div class="content-card reveal">${titleHtml}<div class="content-card-body">${sanitizeRichText(text)}</div></div>`;
+  }
+  if (block.type === "table") {
+    const html = typeof c.html === "string" ? c.html : "";
+    if (!html) return "";
+    return `<div class="content-table reveal">${sanitizeRichText(html)}</div>`;
   }
   return "";
 }
@@ -433,6 +438,11 @@ ${buildScormRuntimeScript(scormRuntime)}
     .content-card-body { margin: 0; }
     .content-card-body ul, .content-card-body ol { margin: 0.5em 0; padding-left: 1.25em; }
     .content-card-body li { margin: 0.2em 0; }
+    .content-table { margin: 2rem 0; overflow-x: auto; }
+    .content-table table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    .content-table th, .content-table td { padding: 0.75rem 1rem; border: 1px solid #e5e7eb; text-align: left; }
+    .content-table th { background: #f9fafb; font-weight: 600; }
+    .content-table tr:nth-child(even) td { background: #fafafa; }
     .interaction { margin: 4rem 0; padding: 24px 32px; background: #ffffff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
     .interaction .question, .interaction .prompt { margin: 0 0 1rem 0; font-weight: 500; }
     .interaction .options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }

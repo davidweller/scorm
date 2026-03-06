@@ -129,6 +129,16 @@ export function BlockEditor({
         </BlockWrap>
       );
     }
+    if (block.type === "table") {
+      return (
+        <BlockWrap {...wrapProps}>
+          <TableBlockEditor
+            data={block.data as { html?: string }}
+            onSave={(d) => save(d)}
+          />
+        </BlockWrap>
+      );
+    }
   }
 
   // Interaction block types
@@ -415,6 +425,66 @@ function KeyPointBlockEditor({
         onBlur={() => onSave({ title, text })}
         placeholder="Key point content"
       />
+    </div>
+  );
+}
+
+function TableBlockEditor({
+  data,
+  onSave,
+}: {
+  data: { html?: string };
+  onSave: (d: Record<string, unknown>) => void;
+}) {
+  const [html, setHtml] = useState(data.html ?? "");
+  const [isEditing, setIsEditing] = useState(false);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") {
+      e.currentTarget.blur();
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {isEditing ? (
+        <>
+          <label className="block text-xs font-medium text-gray-500">Table HTML</label>
+          <textarea
+            value={html}
+            onChange={(e) => setHtml(e.target.value)}
+            onBlur={() => {
+              onSave({ html });
+              setIsEditing(false);
+            }}
+            onKeyDown={handleKeyDown}
+            rows={8}
+            className="w-full rounded border border-gray-200 px-2 py-1 font-mono text-xs transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            placeholder="<table>...</table>"
+          />
+        </>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-medium text-gray-500">Table Preview</label>
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Edit HTML
+            </button>
+          </div>
+          {html ? (
+            <div
+              className="overflow-x-auto rounded border border-gray-200 p-2 text-sm [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          ) : (
+            <p className="text-sm text-gray-400 italic">No table content. Click &quot;Edit HTML&quot; to add a table.</p>
+          )}
+        </>
+      )}
     </div>
   );
 }
