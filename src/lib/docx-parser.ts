@@ -173,6 +173,10 @@ export function formatDocumentForAI(doc: ParsedDocument): string {
   content = content.replace(/<img[^>]*>/gi, ""); // Remove image tags completely
   content = content.replace(/<(?!\/?(p|ul|ol|li|strong|em|table|thead|tbody|tr|th|td)(?:>|\s))[^>]*>/gi, "");
   
+  // Convert non-breaking spaces to regular spaces
+  content = content.replace(/&nbsp;/g, " ");
+  content = content.replace(/\u00A0/g, " ");
+  
   // Clean up excessive whitespace
   content = content.replace(/\n{3,}/g, "\n\n");
   content = content.trim();

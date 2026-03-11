@@ -109,7 +109,7 @@ CRITICAL RULES - YOU MUST FOLLOW THESE:
 6. Bullet lists become: { "category": "content", "type": "text", "data": { "text": "<ul><li>item</li></ul>" } }
 7. Numbered lists become: { "category": "content", "type": "text", "data": { "text": "<ol><li>item</li></ol>" } }
 8. Keep content in document order
-9. Look for quiz patterns: "Quiz:", "Question:", "True or False:", "Match:", "Flashcards:"
+9. Look for quiz patterns: "Quiz:", "Question:", "True or False:", "Match:", "Flashcards:" - when you convert these to interaction blocks, DO NOT also create text blocks for the same content. The interaction block REPLACES the text, not duplicates it.
 10. Preserve formatting: <strong> for bold, <em> for italic
 11. A module with substantial content should have 20-100+ blocks. If you only have a few blocks, you're missing content!`;
 
