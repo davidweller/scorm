@@ -1,10 +1,12 @@
-# SCORM Course Builder SaaS -- Product Requirements Document (PRD)
+# SCORM Course Builder SaaS — Product Requirements Document (PRD)
+
+*This document is aligned with the current codebase (Next.js 14, Prisma, Vercel Blob, OpenAI + optional Gemini).*
 
 ## 1. Product Overview
 
 **Working Name:** TBD\
-**Category:** B2B SaaS -- E-learning Authoring & SCORM Export\
-**Primary Output:** SCORM 1.2 / SCORM 2004 compliant `.zip` packages
+**Category:** B2B SaaS — E-learning Authoring & SCORM Export\
+**Primary Output:** LMS-ready SCORM 1.2 `.zip` packages (SCORM 2004 planned)
 
 ### Core Value Proposition
 
@@ -54,87 +56,70 @@ Institutions need:
 
 ### 4.1 Course Creation Engine
 
--   Course title and overview\
--   Learning outcomes (ILOs) input\
--   Module and lesson builder\
--   Page-based structure (screen-level authoring)
+-   Course title, overview, audience, target word count, tone, compliance level\
+-   Optional branding at creation (primary, secondary, accent, background, content background, fonts)\
+-   Optional bring-your-own OpenAI API key\
+-   **Course import:** Upload a `.docx` (Word) file; AI structures it into course → modules → lessons → pages and content/interaction blocks (optional path into the flow)\
+-   Module and lesson builder (create, reorder, rename, delete)\
+-   Page-based structure (screen-level authoring); content blocks: text, heading, image, video embed, key insight, key point, table
 
 ### 4.2 AI Content Generation
 
-Generate: - Lesson outlines\
-- Slide content\
-- Knowledge checks\
-- Case studies\
-- Scenario branches
-
-Features: - Regenerate/edit per block\
-- Tone selection\
-- Length control
+-   **Blueprint:** AI proposes course description, module titles, lesson titles per module, ILOs (learning outcomes), and assessment plan; user can edit inline and regenerate per section\
+-   **Lesson pages:** AI generates content blocks (intro, core content, knowledge checks, summary) per lesson; user selects lesson(s) or “all”, then refines in the editor\
+-   **Interactions:** AI generates knowledge checks per lesson; user configures enabled types (reflection, multiple choice, true/false, drag-and-drop, matching, dialog cards), density, placement, and whether to include explanations\
+-   Regenerate per block (supported for interaction blocks)\
+-   Tone and course context (audience, word count, compliance) drive generation
 
 ### 4.3 Interactive Components Library
 
-Supported interactions (MVP): - Multiple choice\
-- True/false\
-- Drag-and-drop\
-- Matching\
-- Basic scenario branching\
-- Reflection text input (non-graded)
+Supported interactions (implemented): - **Multiple choice** (question, options, correct index, optional explanation)\
+- **True/false** (question, correct boolean, optional explanation)\
+- **Reflection** (open-ended prompt; non-graded)\
+- **Drag-and-drop** (items in correct order)\
+- **Matching** (left/right pairs)\
+- **Dialog cards** (flip cards with front/back text)
 
 ### 4.4 Brand Customisation
 
--   Primary colour\
--   Secondary colour\
--   Accent colour\
--   Background colour\
--   Logo upload\
--   Font selection (Google Fonts)\
--   Global design tokens\
--   Live preview mode
+-   Primary, secondary, accent, background, content background colours\
+-   Logo upload (stored in blob storage)\
+-   Heading and body font (e.g. Work Sans, Ubuntu)\
+-   Design tokens applied across preview and SCORM export\
+-   Preview mode (learner view and “as LMS” with SCORM API)
 
 ### 4.5 Media Integration
 
--   Image upload\
--   AI image generation (style presets)\
--   Embed YouTube/Vimeo links\
--   Icon library\
--   Basic animations and transitions
+-   Image upload (Vercel Blob)\
+-   AI image generation (Gemini; optional, style presets)\
+-   Video embed (e.g. YouTube/Vimeo URLs in content)\
+-   Media library with search and filter (upload vs AI-generated)
 
 ### 4.6 SCORM Export Engine (Critical)
 
-Export options: - SCORM 1.2\
-- SCORM 2004 (3rd edition)\
-- Completion criteria: - Percentage of pages viewed\
-- Quiz pass percentage\
-- Pass/fail or complete/incomplete
-
-Includes: - Bookmarking support\
-- Score reporting\
-- Time tracking
-
-Output: - LMS-ready `.zip` file\
-- Valid `imsmanifest.xml`\
-- JavaScript SCORM API wrapper\
-- Responsive HTML5 package
+-   **SCORM 1.2:** Implemented; produces LMS-ready `.zip` with valid `imsmanifest.xml`, JavaScript SCORM API wrapper, responsive HTML5, bundled images, bookmarking, score reporting, time tracking\
+-   **SCORM 2004 (3rd ed):** Planned; not yet implemented\
+-   Completion/scoring: default behaviour (complete/incomplete per SCO); further completion rules configurable in future
 
 ### 4.7 Testing & Validation
 
--   Built-in "Preview as LMS" mode\
--   Debug log viewer\
--   SCORM validation check
+-   **Preview:** “Preview (Learner View)” and “Preview as LMS” (SCORM API) with page-by-page navigation\
+-   **Review/validator:** Reading time (word count), ILO coverage, accessibility (image alt text, heading level hierarchy), broken link check\
+-   SCORM package can be validated externally (e.g. SCORM Cloud)
 
 ------------------------------------------------------------------------
 
 ## 5. Advanced Features (Phase 2)
 
+-   SCORM 2004 export\
 -   xAPI export\
 -   Multi-language generation\
--   Accessibility checker (WCAG 2.2)\
+-   Accessibility checker (WCAG 2.2; colour contrast, etc.) — partial checks (alt text, heading hierarchy) already in Review\
 -   Version control\
 -   Collaboration (comments + roles)\
 -   Template marketplace\
 -   LMS analytics connector\
--   Bulk course duplication\
--   Cross-institution cloning
+-   Bulk course duplication / cross-institution cloning
 
 ------------------------------------------------------------------------
 
@@ -142,63 +127,75 @@ Output: - LMS-ready `.zip` file\
 
 ### Frontend
 
--   React + TypeScript\
--   Modular block-based editor\
--   Drag-and-drop builder\
--   Centralised state management
+-   Next.js 14 (App Router) + React + TypeScript + Tailwind\
+-   Block-based page editor (TipTap for rich text; drag-and-drop reorder via @dnd-kit)\
+-   Course tree (modules → lessons → pages) with inline add/rename/delete
 
 ### Backend
 
--   Node.js API\
--   Course JSON schema\
--   SCORM packaging microservice\
--   AI service abstraction layer
+-   Next.js API routes (REST)\
+-   Prisma ORM; course data stored in PostgreSQL (e.g. Neon / Vercel Postgres)\
+-   SCORM packaging in-app (`buildScorm12Zip`, manifest, API wrapper, HTML renderer)\
+-   AI: OpenAI for blueprint, lesson content, and interactions (optional BYO key); Gemini for optional AI image generation
 
 ### Storage
 
--   Cloud object storage (S3-compatible)\
--   PostgreSQL for structured course data
+-   Vercel Blob for uploads (images, logo) and generated media\
+-   PostgreSQL for courses, modules, lessons, pages, blocks, media metadata
 
 ### SCORM Engine Layer
 
--   SCORM API wrapper (JavaScript)\
--   Runtime event tracking\
--   Automatic manifest generator\
--   Course-to-SCO mapping logic
+-   JavaScript SCORM API wrapper (1.2)\
+-   Runtime event tracking (view, completion, score)\
+-   Automatic manifest generator (imsmanifest.xml)\
+-   Course-to-SCO mapping (one SCO per page); images fetched and bundled into package
 
 ------------------------------------------------------------------------
 
 ## 7. Data Model (High-Level)
 
+Implemented via Prisma; high-level shape:
+
 ### Course
 
--   Metadata\
--   Brand configuration\
--   Modules\[\]
+-   Metadata (title, overview, audience, targetWordCount, tone, complianceLevel)\
+-   brandConfig (JSON: primary, secondary, accent, background, contentBg, logoUrl, headingFont, bodyFont, etc.)\
+-   settings (e.g. apiKeys.openai for BYO key)\
+-   ilos, assessmentPlan, interactionConfig (JSON)\
+-   modules\[\]
 
 ### Module
 
--   Lessons\[\]
+-   title, order\
+-   lessons\[\]
 
 ### Lesson
 
--   Pages\[\]
+-   title, order\
+-   pages\[\]
 
 ### Page
 
--   Content blocks\[\]\
--   Interaction blocks\[\]\
--   Completion rules
+-   title, order, completionRules (JSON)\
+-   blocks\[\] (unified; each block has category: "content" | "interaction", type, data, order)
+
+### Block
+
+-   category, type, data (JSON), order\
+-   Content types: text, heading, image, video_embed, key_insight, key_point, table\
+-   Interaction types: multiple_choice, true_false, reflection, drag_and_drop, matching, dialog_cards
+
+### Media
+
+-   url, filename, mimeType, size, width, height, alt, source (upload | ai_generated), prompt
 
 ------------------------------------------------------------------------
 
 ## 8. Compliance & Accessibility
 
--   WCAG AA minimum\
--   Full keyboard navigation\
--   ARIA labels\
--   Caption support for embedded media\
--   Automated colour contrast checking
+-   Target: WCAG AA minimum\
+-   Review validator checks: image alt text, heading level hierarchy (no skips)\
+-   Full keyboard navigation, ARIA labels, caption support, and automated colour contrast checking are Phase 2 / ongoing improvements
 
 ------------------------------------------------------------------------
 
@@ -269,66 +266,71 @@ Differentiation: - AI-native workflow\
 
 ## 13. MVP Definition (Strict Scope)
 
-The MVP must: - Create structured courses\
-- Include three interaction types\
-- Export valid SCORM 1.2\
-- Track completion and score\
-- Support branding\
-- Pass SCORM Cloud validation
+The MVP must: - Create structured courses (modules → lessons → pages → blocks)\
+- Include at least three interaction types (implemented: multiple choice, true/false, reflection, drag-and-drop, matching, dialog cards)\
+- Export valid SCORM 1.2 (LMS-ready .zip, imsmanifest.xml, API wrapper, completion/score)\
+- Support branding (colours, logo, fonts)\
+- Optional: course import from .docx, AI blueprint, AI-generated pages and interactions, preview as LMS, review/validation report
 
-Anything beyond this is excluded from MVP.
+Anything beyond this (e.g. SCORM 2004, xAPI, collaboration) is post-MVP.
 
 ------------------------------------------------------------------------
 
 ## 14. MVP User Flow
 
-The primary path through the product is a five-step flow from course creation to SCORM export.
+The primary path is create → blueprint → generate content → (optional) generate interactions → review → export. An alternative path is import from Word (.docx) → blueprint (pre-filled) → refine → review → export.
 
-### Step 1 — Create course
+### Step 1 — Create course (or import)
 
-**Inputs:** Title/topic, audience, duration, tone, compliance level, branding (optional), and optional "bring-your-own" API key setup for AI generation.
+**Create:** Title, overview, audience, target word count, tone, compliance level, optional branding (colours, fonts), optional BYO OpenAI key.
 
-**Output:** A new course record; user is directed to the blueprint step.
+**Import (alternative):** Upload a `.docx` file; AI parses and creates course with modules, lessons, pages, and content/interaction blocks. User is taken to blueprint to adjust structure and ILOs.
 
-### Step 2 — Generate course blueprint
+**Output:** New course; user is directed to Blueprint.
 
-**Inputs:** Course context from Step 1 (title, audience, duration, tone, compliance).
+### Step 2 — Blueprint
 
-**AI proposes:** Course description, modules (titles), lessons per module (titles), ILOs (learning outcomes), and an assessment plan (where/how to assess).
+**Inputs:** Course context (title, overview, audience, word count, tone, compliance). If imported, structure may already be filled.
 
-**User actions:** Edit any section inline; use "Regenerate" per section to get a new AI proposal.
+**AI can propose:** Course description, module titles, lesson titles per module, ILOs, assessment plan. User edits inline and can regenerate per section.
 
-**Output:** Persisted blueprint (real modules/lessons plus ILOs and assessment plan); user continues to generate lesson pages.
+**Output:** Apply blueprint creates/updates modules and lessons; user continues to Generate (lesson pages).
 
 ### Step 3 — Generate lesson pages
 
-**Inputs:** Course and blueprint (modules, lessons, ILOs, assessment plan, tone).
+**Inputs:** Course and blueprint (modules, lessons, ILOs, tone).
 
-**For each lesson:** AI generates content blocks (intro, core content, knowledge checks, summary) and optional H5P activity suggestions.
+**Per lesson:** AI generates pages and content blocks (intro, core content, knowledge checks, summary).
 
-**User actions:** Select lesson(s) or "all", trigger generation, then refine in the editor.
+**User actions:** Select lesson(s) or "all", trigger generation, then refine in the page editor.
 
-**Output:** Pages and content/interaction blocks created or updated; user proceeds to review.
+**Output:** Pages and content blocks; user may then run Generate interactions (Step 3b) or go to Edit/Review.
+
+### Step 3b — Generate interactions (optional)
+
+**Inputs:** Interaction config (enabled types, density, placement, include explanations). Run per lesson or in bulk.
+
+**Output:** Interaction blocks added to pages; user refines in editor.
 
 ### Step 4 — Review
 
-**Built-in validator runs:** Reading time (estimated from content), coverage vs ILOs, accessibility checks (e.g. alt text, headings, contrast), and link checks (e.g. video embeds, URLs in text).
+**Validator:** Reading time (word count), ILO coverage, accessibility (alt text, heading hierarchy), broken link check.
 
-**User actions:** Review issues by category, fix manually in the editor via "Go to page" where needed.
+**User actions:** Review report, fix issues in editor via "Go to page" where needed.
 
-**Output:** Validation report; user proceeds to export when ready.
+**Output:** User proceeds to Export when ready.
 
 ### Step 5 — Export
 
-**Inputs:** User chooses SCORM version (1.2 or 2004), completion rules (e.g. % pages viewed, quiz pass %, pass/fail), scoring options, and LMS settings (e.g. launch options).
+**Inputs:** SCORM version (1.2 implemented; 2004 planned). Completion/scoring use default behaviour; LMS settings can be set in the LMS when importing.
 
-**Output:** LMS-ready `.zip` package with valid `imsmanifest.xml`, SCORM API wrapper, and responsive HTML5 content; user downloads the package.
+**Output:** LMS-ready `.zip` with valid `imsmanifest.xml`, SCORM API wrapper, responsive HTML5; user downloads the package.
 
 ------------------------------------------------------------------------
 
 ## 15. Roadmap Phases
 
-**Phase 1:** Core Builder + SCORM 1.2\
-**Phase 2:** Collaboration + Templates\
-**Phase 3:** xAPI + Enterprise Controls\
-**Phase 4:** Marketplace + API Ecosystem
+**Phase 1 (current):** Core builder (create, blueprint, generate pages, generate interactions), six interaction types, branding, media (upload + optional AI images), course import (.docx), review/validation, preview as LMS, SCORM 1.2 export. **Done.**\
+**Phase 2:** SCORM 2004, collaboration (comments, roles), templates, bulk duplication\
+**Phase 3:** xAPI, accessibility checker (e.g. WCAG colour contrast), enterprise controls\
+**Phase 4:** Marketplace, API ecosystem
