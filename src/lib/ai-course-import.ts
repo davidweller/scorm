@@ -51,8 +51,8 @@ export interface ImportedCourseData {
 const SYSTEM_PROMPT = `You are an expert instructional designer. Analyze a course document and extract the complete course structure as JSON.
 
 DOCUMENT STRUCTURE:
-- Content BEFORE "Module 1" contains metadata: course title, overview, learning outcomes (ILOs), audience, etc.
-- Course content starts at "Module 1" (or "# Module 1")
+- Content BEFORE "Module 1" contains metadata AND learner-facing introduction content (course overview, how to use the course, prerequisites, etc.).
+- Course content starts at "Module 1" (or "# Module 1"), but you MUST NOT omit the pre-Module content.
 - Each "Module X" heading marks a new module
 - All content within a module goes on a SINGLE page
 
@@ -88,6 +88,7 @@ CONTENT BLOCK TYPES - CRITICAL: Every paragraph becomes a "text" block with cate
 - "text": { "text": "<ol><li>Step 1</li><li>Step 2</li></ol>" } - USE FOR NUMBERED LISTS
 - "heading": { "level": 2, "text": "Heading text" } - USE FOR H2/## HEADINGS
 - "heading": { "level": 3, "text": "Subheading text" } - USE FOR H3/### HEADINGS
+- "image": { "url": "https://...", "alt": "description" } - USE FOR IMAGES (see marker rule below)
 - "key_insight": { "text": "<p>Important insight text</p>" }
 - "key_point": { "title": "optional title", "text": "<p>Point content</p>" }
 - "table": { "html": "<table>...</table>" }
@@ -111,7 +112,26 @@ CRITICAL RULES - YOU MUST FOLLOW THESE:
 8. Keep content in document order
 9. Look for quiz patterns: "Quiz:", "Question:", "True or False:", "Match:", "Flashcards:" - when you convert these to interaction blocks, DO NOT also create text blocks for the same content. The interaction block REPLACES the text, not duplicates it.
 10. Preserve formatting: <strong> for bold, <em> for italic
-11. A module with substantial content should have 20-100+ blocks. If you only have a few blocks, you're missing content!`;
+11. IMAGE MARKERS: If the document contains markers in this exact form: [[IMAGE url="..." alt="..."]]
+    - You MUST create a separate image block at that exact position:
+      { "category": "content", "type": "image", "data": { "url": "<url>", "alt": "<alt>" } }
+    - If url is empty, still create the image block (so the user can fix it later).
+    - Do NOT wrap the marker in a text block; the image block replaces the marker.
+12. INTRODUCTION CONTENT: ALL content before \"Module 1\" must be included as an \"Introduction\" module BEFORE Module 1:
+    {
+      \"title\": \"Introduction\",
+      \"lessons\": [{
+        \"title\": \"Introduction\",
+        \"pages\": [{
+          \"title\": \"Introduction\",
+          \"blocks\": [ ... all pre-Module content converted into blocks in order ... ]
+        }]
+      }]
+    }
+    - Include Course Overview and any other pre-Module text here as blocks (do not omit it).
+    - Still also populate the top-level JSON fields: title, overview, audience, tone, ilos, assessmentPlan.
+    - IMPORTANT: Even if you extract Course Overview into the top-level \"overview\" field, you MUST ALSO include that same overview text as blocks in the Introduction page.
+13. A module with substantial content should have 20-100+ blocks. If you only have a few blocks, you're missing content!`;
 
 export async function analyzeCourseDocument(
   client: OpenAI,
@@ -195,6 +215,12 @@ function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedC
         if (!Array.isArray(page.blocks)) page.blocks = [];
 
         const originalCount = page.blocks.length;
+        // Deterministically convert any [[IMAGE ...]] markers that slipped into text blocks
+        // into separate image blocks. This avoids relying on the model to always create
+        // proper image blocks from markers.
+        page.blocks = expandImageMarkersInBlocks(page.blocks);
+
+        // Now validate/filter blocks (after expansion) so image blocks are retained.
         page.blocks = page.blocks.filter((block) => {
           if (!block.category || !block.type || !block.data) {
             console.log(`[Import] Filtering block - missing fields:`, { category: block.category, type: block.type, hasData: !!block.data });
@@ -206,6 +232,7 @@ function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedC
           }
           return valid;
         });
+
         if (page.blocks.length !== originalCount) {
           console.log(`[Import] Filtered ${originalCount - page.blocks.length} blocks from page "${page.title}"`);
         }
@@ -216,12 +243,81 @@ function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedC
   return data;
 }
 
-const VALID_CONTENT_TYPES = new Set(["text", "heading", "video_embed", "key_insight", "key_point", "table"]);
+function expandImageMarkersInBlocks(blocks: ImportedBlock[]): ImportedBlock[] {
+  const out: ImportedBlock[] = [];
+  const markerRegex = /\[\[IMAGE url="([^"]*)" alt="([^"]*)"\]\]/g;
+
+  for (const block of blocks) {
+    if (block.category !== "content" || block.type !== "text") {
+      out.push(block);
+      continue;
+    }
+    const data = block.data as { text?: unknown };
+    const text = typeof data?.text === "string" ? data.text : "";
+    if (!text || !markerRegex.test(text)) {
+      out.push(block);
+      continue;
+    }
+
+    markerRegex.lastIndex = 0;
+    let lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = markerRegex.exec(text)) !== null) {
+      const before = text.slice(lastIndex, m.index);
+      const url = m[1] || "";
+      const alt = (m[2] || "").replaceAll("&quot;", "\"");
+
+      if (before.trim()) {
+        out.push({
+          category: "content",
+          type: "text",
+          data: { text: before },
+        });
+      }
+
+      out.push({
+        category: "content",
+        type: "image",
+        data: { url, alt },
+      });
+
+      lastIndex = m.index + m[0].length;
+    }
+
+    const after = text.slice(lastIndex);
+    if (after.trim()) {
+      out.push({
+        category: "content",
+        type: "text",
+        data: { text: after },
+      });
+    }
+  }
+
+  return out;
+}
+
+const VALID_CONTENT_TYPES = new Set([
+  "text",
+  "heading",
+  "image",
+  "video_embed",
+  "key_insight",
+  "key_point",
+  "table",
+]);
 const VALID_INTERACTION_TYPES = new Set(["multiple_choice", "true_false", "reflection", "drag_and_drop", "matching", "dialog_cards"]);
 
 function validateBlock(block: ImportedBlock): boolean {
   if (block.category === "content") {
     if (!VALID_CONTENT_TYPES.has(block.type)) return false;
+    if (block.type === "image") {
+      const data = block.data as { url?: unknown; alt?: unknown };
+      // url may be empty string for placeholders, a data: URL, or an https URL.
+      if (typeof data.url !== "string") return false;
+      if (data.alt != null && typeof data.alt !== "string") return false;
+      return true;
+    }
     if (block.type === "table") {
       const data = block.data as { html?: string };
       return typeof data.html === "string" && data.html.length > 0;

@@ -22,12 +22,22 @@ export interface ParsedDocument {
   headings: ParsedHeading[];
   paragraphs: string[];
   lists: ParsedListItem[];
+  images: ParsedImage[];
+}
+
+export interface ParsedImage {
+  token: string;
+  contentType: string | null;
+  base64: string;
+  alt: string | null;
 }
 
 export async function parseDocx(buffer: ArrayBuffer): Promise<ParsedDocument> {
   const nodeBuffer = Buffer.from(buffer);
   
-  // Convert to HTML, ignoring images
+  const images: ParsedImage[] = [];
+
+  // Convert to HTML, extracting images into placeholders
   // Use type assertion for mammoth's image handling which isn't fully typed
   const mammothAny = mammoth as unknown as {
     convertToHtml: (
@@ -35,16 +45,42 @@ export async function parseDocx(buffer: ArrayBuffer): Promise<ParsedDocument> {
       options?: { convertImage?: unknown }
     ) => Promise<{ value: string }>;
     images: {
-      inline: (fn: () => Promise<{ src: string }>) => unknown;
+      inline: (fn: (image: unknown) => Promise<{ src: string }>) => unknown;
     };
   };
   
   const result = await mammothAny.convertToHtml(
     { buffer: nodeBuffer },
     {
-      convertImage: mammothAny.images.inline(() => {
-        // Skip all images - return empty element
-        return Promise.resolve({ src: "" });
+      convertImage: mammothAny.images.inline(async (image) => {
+        const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${images.length}`;
+
+        try {
+          const imgAny = image as {
+            contentType?: string;
+            altText?: string;
+            read: (encoding: "base64") => Promise<string>;
+          };
+
+          const base64 = await imgAny.read("base64");
+          images.push({
+            token,
+            contentType: typeof imgAny.contentType === "string" ? imgAny.contentType : null,
+            base64,
+            alt: typeof imgAny.altText === "string" ? imgAny.altText : null,
+          });
+        } catch {
+          // If we fail to read image bytes, still emit a placeholder token so
+          // downstream can create a placeholder image block.
+          images.push({
+            token,
+            contentType: null,
+            base64: "",
+            alt: null,
+          });
+        }
+
+        return { src: `docx-image://${token}` };
       }),
     }
   );
@@ -63,6 +99,7 @@ export async function parseDocx(buffer: ArrayBuffer): Promise<ParsedDocument> {
     headings,
     paragraphs,
     lists,
+    images,
   };
 }
 
@@ -158,7 +195,8 @@ export function formatDocumentForAI(doc: ParsedDocument): string {
   content = content.replace(/<b[^>]*>/gi, "<strong>");
   content = content.replace(/<\/b>/gi, "</strong>");
   content = content.replace(/<em[^>]*>/gi, "<em>");
-  content = content.replace(/<i[^>]*>/gi, "<em>");
+  // Important: use a word-boundary so <img> doesn't match this regex.
+  content = content.replace(/<i\b[^>]*>/gi, "<em>");
   content = content.replace(/<\/i>/gi, "</em>");
   
   // Preserve table tags (strip attributes for security)
@@ -169,8 +207,23 @@ export function formatDocumentForAI(doc: ParsedDocument): string {
   content = content.replace(/<th[^>]*>/gi, "<th>");
   content = content.replace(/<td[^>]*>/gi, "<td>");
   
-  // Remove other HTML tags (spans, divs, images, etc.) but keep their content
-  content = content.replace(/<img[^>]*>/gi, ""); // Remove image tags completely
+  // Keep docx image placeholders as explicit markers the AI can turn into image blocks.
+  // mammoth emits <img src="docx-image://TOKEN" ...>; convert those to [[IMAGE_TOKEN:TOKEN]].
+  content = content.replace(
+    /<img[^>]*\ssrc=["']docx-image:\/\/([^"']+)["'][^>]*>/gi,
+    (_m, token) => `[[IMAGE_TOKEN:${String(token)}]]`
+  );
+  // Remove any remaining <img> tags (e.g., unsupported/external) for safety.
+  content = content.replace(/<img[^>]*>/gi, "");
+
+  // If italics appear to be accidentally applied to nearly all paragraphs, strip <em> globally.
+  // Otherwise preserve genuine emphasis.
+  const totalParagraphs = (content.match(/<p>/gi) || []).length;
+  const fullyItalicParagraphs = (content.match(/<p><em>[\s\S]*?<\/em><\/p>/gi) || []).length;
+  const fullyItalicRatio = totalParagraphs > 0 ? fullyItalicParagraphs / totalParagraphs : 0;
+  if (totalParagraphs >= 3 && fullyItalicRatio >= 0.8) {
+    content = content.replace(/<em>/gi, "").replace(/<\/em>/gi, "");
+  }
   content = content.replace(/<(?!\/?(p|ul|ol|li|strong|em|table|thead|tbody|tr|th|td)(?:>|\s))[^>]*>/gi, "");
   
   // Convert non-breaking spaces to regular spaces

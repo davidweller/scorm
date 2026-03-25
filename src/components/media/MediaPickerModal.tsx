@@ -12,6 +12,7 @@ interface MediaPickerModalProps {
   onClose: () => void;
   onSelect: (media: Media) => void;
   geminiApiKey?: string;
+  mode?: "image" | "video";
 }
 
 export default function MediaPickerModal({
@@ -19,6 +20,7 @@ export default function MediaPickerModal({
   onClose,
   onSelect,
   geminiApiKey,
+  mode = "image",
 }: MediaPickerModalProps) {
   const [media, setMedia] = useState<Media[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,6 +32,7 @@ export default function MediaPickerModal({
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<GenerationStyle>("illustration");
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
+  const isVideoMode = mode === "video";
 
   const fetchMedia = useCallback(async () => {
     setLoading(true);
@@ -42,13 +45,16 @@ export default function MediaPickerModal({
       if (!res.ok) throw new Error("Failed to fetch media");
 
       const data = (await res.json()) as MediaListResponse;
-      setMedia(data.media);
+      const filtered = data.media.filter((item) =>
+        isVideoMode ? item.mimeType === "video/mp4" : item.mimeType.startsWith("image/")
+      );
+      setMedia(filtered);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load media");
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, isVideoMode]);
 
   useEffect(() => {
     if (isOpen) {
@@ -152,7 +158,7 @@ export default function MediaPickerModal({
             >
               <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-lg bg-white shadow-xl transition-all">
                 <Dialog.Title className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-                  <span className="font-medium text-gray-900">Select Image</span>
+                  <span className="font-medium text-gray-900">{isVideoMode ? "Select Video" : "Select Image"}</span>
                   <button
                     onClick={onClose}
                     className="text-gray-400 hover:text-gray-600 text-xl leading-none"
@@ -163,7 +169,7 @@ export default function MediaPickerModal({
 
                 <Tab.Group>
                   <Tab.List className="flex border-b border-gray-200">
-                    {["Library", "Upload", "Generate"].map((tab) => (
+                    {[...(!isVideoMode ? ["Library", "Upload", "Generate"] : ["Library", "Upload"])].map((tab) => (
                       <Tab
                         key={tab}
                         className={({ selected }) =>
@@ -193,7 +199,7 @@ export default function MediaPickerModal({
                         <div className="text-center py-8 text-gray-500">Loading...</div>
                       ) : media.length === 0 ? (
                         <div className="text-center py-8 text-gray-500">
-                          No images in library
+                          {isVideoMode ? "No MP4 videos in library" : "No images in library"}
                         </div>
                       ) : (
                         <div className="grid grid-cols-4 gap-3 max-h-80 overflow-y-auto">
@@ -203,11 +209,21 @@ export default function MediaPickerModal({
                               onClick={() => handleSelectMedia(item)}
                               className="relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-indigo-500 transition-colors"
                             >
-                              <img
-                                src={item.url}
-                                alt={item.alt || item.filename}
-                                className="w-full h-full object-cover"
-                              />
+                              {item.mimeType.startsWith("image/") ? (
+                                <img
+                                  src={item.url}
+                                  alt={item.alt || item.filename}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full flex-col items-center justify-center bg-gray-50 p-2 text-center">
+                                  <span className="text-2xl" aria-hidden="true">🎬</span>
+                                  <span className="mt-1 line-clamp-2 text-[11px] text-gray-600">{item.filename}</span>
+                                  <span className="mt-0.5 text-[10px] text-gray-400">
+                                    {(item.size / 1024 / 1024).toFixed(1)} MB
+                                  </span>
+                                </div>
+                              )}
                               {item.source === "ai_generated" && (
                                 <span className="absolute top-1 right-1 px-1.5 py-0.5 bg-purple-600 text-white text-xs rounded">
                                   AI
@@ -224,7 +240,7 @@ export default function MediaPickerModal({
                         <label className="cursor-pointer inline-flex flex-col items-center gap-3 p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-400 transition-colors">
                           <input
                             type="file"
-                            accept="image/*"
+                            accept={isVideoMode ? "video/mp4" : "image/*"}
                             onChange={handleUpload}
                             disabled={uploading}
                             className="sr-only"
@@ -243,14 +259,23 @@ export default function MediaPickerModal({
                             />
                           </svg>
                           <span className="text-sm text-gray-600">
-                            {uploading ? "Uploading..." : "Click to upload an image"}
+                            {uploading
+                              ? "Uploading..."
+                              : isVideoMode
+                                ? "Click to upload an MP4 video"
+                                : "Click to upload an image"}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {isVideoMode
+                              ? "MP4 only, max 100MB. Large files increase SCORM package size."
+                              : "Images only, max 4.5MB."}
                           </span>
                         </label>
                         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
                       </div>
                     </Tab.Panel>
 
-                    <Tab.Panel>
+                    {!isVideoMode && <Tab.Panel>
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -305,7 +330,7 @@ export default function MediaPickerModal({
                           {generating ? "Generating..." : "Generate Image"}
                         </button>
                       </div>
-                    </Tab.Panel>
+                    </Tab.Panel>}
                   </Tab.Panels>
                 </Tab.Group>
               </Dialog.Panel>

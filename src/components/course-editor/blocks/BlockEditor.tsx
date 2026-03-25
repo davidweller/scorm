@@ -103,7 +103,7 @@ export function BlockEditor({
       return (
         <BlockWrap {...wrapProps}>
           <VideoEmbedBlockEditor
-            data={block.data as { url?: string }}
+            data={block.data as { url?: string; mimeType?: string; sourceType?: "upload" | "embed" }}
             onSave={(d) => save(d)}
           />
         </BlockWrap>
@@ -346,10 +346,13 @@ function VideoEmbedBlockEditor({
   data,
   onSave,
 }: {
-  data: { url?: string };
+  data: { url?: string; mimeType?: string; sourceType?: "upload" | "embed" };
   onSave: (d: Record<string, unknown>) => void;
 }) {
   const [url, setUrl] = useState(data.url ?? "");
+  const [mimeType, setMimeType] = useState(data.mimeType ?? "");
+  const [sourceType, setSourceType] = useState<"upload" | "embed">(data.sourceType === "upload" ? "upload" : "embed");
+  const [showPicker, setShowPicker] = useState(false);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") {
@@ -357,18 +360,53 @@ function VideoEmbedBlockEditor({
     }
   }
 
+  function handleMediaSelect(media: Media) {
+    setUrl(media.url);
+    setMimeType(media.mimeType);
+    setSourceType("upload");
+    onSave({ url: media.url, mimeType: media.mimeType, sourceType: "upload" });
+  }
+
   return (
-    <div>
-      <input
-        type="url"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        onBlur={() => onSave({ url })}
-        onKeyDown={handleKeyDown}
-        className="w-full rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        placeholder="YouTube or Vimeo URL"
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            if (sourceType === "upload") setSourceType("embed");
+          }}
+          onBlur={() => onSave({ url, mimeType: sourceType === "upload" ? mimeType : undefined, sourceType })}
+          onKeyDown={handleKeyDown}
+          className="flex-1 rounded border border-gray-200 px-2 py-1 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="YouTube/Vimeo URL or local MP4 URL"
+        />
+        <button
+          type="button"
+          onClick={() => setShowPicker(true)}
+          className="shrink-0 rounded bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-600 hover:bg-indigo-100 transition-colors"
+        >
+          Browse MP4
+        </button>
+      </div>
+      <p className="text-xs text-gray-500">
+        Paste an embed URL or choose an uploaded MP4 video to bundle into SCORM.
+      </p>
+      {url && (sourceType === "upload" || mimeType === "video/mp4" || /\.mp4($|\?)/i.test(url)) && (
+        <video
+          src={url}
+          controls
+          preload="metadata"
+          className="max-h-56 w-full rounded border border-gray-200 bg-black"
+        />
+      )}
+      <MediaPickerModal
+        isOpen={showPicker}
+        onClose={() => setShowPicker(false)}
+        onSelect={handleMediaSelect}
+        mode="video"
       />
-      <p className="mt-1 text-xs text-gray-500">Paste a YouTube or Vimeo link; it will be embedded in the export.</p>
     </div>
   );
 }

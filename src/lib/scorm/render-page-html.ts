@@ -107,10 +107,17 @@ export function renderContentBlock(block: Block): string {
   if (block.type === "video_embed") {
     const url = typeof c.url === "string" ? c.url : "";
     if (!url) return "";
+    const mimeType = typeof c.mimeType === "string" ? c.mimeType : "";
+    const sourceType = typeof c.sourceType === "string" ? c.sourceType : "";
+    const isLocalPath = !/^https?:\/\//i.test(url);
+    const looksLikeMp4 = /\.mp4($|\?)/i.test(url) || mimeType === "video/mp4" || sourceType === "upload";
+    if (isLocalPath || looksLikeMp4) {
+      return `<div class="content-video reveal"><video controls preload="metadata"><source src="${escapeHtml(url)}" type="video/mp4" />Your browser does not support the video tag.</video></div>`;
+    }
     const embed = url.includes("youtube") || url.includes("youtu.be")
       ? url.replace(/youtu\.be\/([^?]+)/, "youtube.com/embed/$1").replace(/watch\?v=([^&]+)/, "embed/$1")
       : url;
-    return `<div class="content-video reveal"><iframe src="${escapeHtml(embed)}" allowfullscreen></iframe></div>`;
+    return `<div class="content-video reveal"><iframe src="${escapeHtml(embed)}" title="Embedded video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>`;
   }
   if (block.type === "key_insight") {
     const text = typeof c.text === "string" ? c.text : "";
@@ -396,6 +403,7 @@ ${buildScormRuntimeScript(scormRuntime)}
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
   <title>${escapeHtml(pageTitle)} - ${escapeHtml(courseTitle)}</title>
   ${fontLink}
   <style>
@@ -428,7 +436,7 @@ ${buildScormRuntimeScript(scormRuntime)}
     .content-image { margin: 3rem 0; }
     .content-image img { max-width: 100%; height: auto; border-radius: 8px; }
     .content-video { margin: 3rem 0; }
-    .content-video iframe { width: 100%; aspect-ratio: 16/9; border-radius: 8px; }
+    .content-video iframe, .content-video video { width: 100%; aspect-ratio: 16/9; border-radius: 8px; }
     .key-insight { margin: 3rem 0; padding: 1.5rem 1.5rem 1.5rem 1.75rem; border-left: 4px solid var(--brand-accent, #ff7700); background: rgba(0,0,0,0.02); font-size: 1.1rem; line-height: 1.65; border-radius: 0 8px 8px 0; }
     .key-insight p { margin: 0; }
     .key-insight ul, .key-insight ol { margin: 0.5em 0; padding-left: 1.25em; }

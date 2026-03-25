@@ -13,12 +13,35 @@ interface ImageMapping {
   localPath: string;
 }
 
+interface VideoMapping {
+  originalUrl: string;
+  localPath: string;
+}
+
 async function fetchAndBundleImage(
   url: string,
   index: number,
   contentFolder: JSZip
 ): Promise<ImageMapping | null> {
   try {
+    // Support data URLs (used as fallback when blob upload isn't configured).
+    const dataUrlMatch = url.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+    if (dataUrlMatch) {
+      const contentType = dataUrlMatch[1].toLowerCase();
+      const base64Data = dataUrlMatch[2];
+      const buf = Buffer.from(base64Data, "base64");
+
+      let ext = "png";
+      if (contentType.includes("jpeg") || contentType.includes("jpg")) ext = "jpg";
+      else if (contentType.includes("gif")) ext = "gif";
+      else if (contentType.includes("webp")) ext = "webp";
+      else if (contentType.includes("svg")) ext = "svg";
+
+      const filename = `img_${index}.${ext}`;
+      contentFolder.file(filename, buf);
+      return { originalUrl: url, localPath: filename };
+    }
+
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) return null;
 
@@ -38,6 +61,26 @@ async function fetchAndBundleImage(
     const filename = `img_${index}.${ext}`;
     contentFolder.file(filename, buf);
 
+    return { originalUrl: url, localPath: filename };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAndBundleVideo(
+  url: string,
+  index: number,
+  contentFolder: JSZip
+): Promise<VideoMapping | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+    if (!res.ok) return null;
+    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    if (!contentType.includes("video/mp4") && !url.toLowerCase().includes(".mp4")) return null;
+
+    const buf = Buffer.from(await res.arrayBuffer());
+    const filename = `video_${index}.mp4`;
+    contentFolder.file(filename, buf);
     return { originalUrl: url, localPath: filename };
   } catch {
     return null;
@@ -65,6 +108,33 @@ function collectImageUrls(course: CourseForExport): string[] {
   return Array.from(urls);
 }
 
+function collectVideoUrls(course: CourseForExport): string[] {
+  const urls = new Set<string>();
+
+  for (const mod of course.modules ?? []) {
+    for (const lesson of mod.lessons ?? []) {
+      for (const page of lesson.pages ?? []) {
+        for (const block of page.blocks ?? []) {
+          if (block.category === "content" && block.type === "video_embed") {
+            const url = block.data?.url;
+            const mimeType = block.data?.mimeType;
+            if (typeof url === "string" && url.trim()) {
+              const trimmedUrl = url.trim();
+              const isLikelyMp4 =
+                /\.mp4($|\?)/i.test(trimmedUrl) ||
+                mimeType === "video/mp4" ||
+                !/^https?:\/\//i.test(trimmedUrl);
+              if (isLikelyMp4) urls.add(trimmedUrl);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return Array.from(urls);
+}
+
 function rewriteImageUrls(
   blocks: BlockForExport[],
   urlMap: Map<string, string>
@@ -76,6 +146,24 @@ function rewriteImageUrls(
         return {
           ...block,
           data: { ...block.data, url: localPath },
+        };
+      }
+    }
+    return block;
+  });
+}
+
+function rewriteVideoUrls(
+  blocks: BlockForExport[],
+  urlMap: Map<string, string>
+): BlockForExport[] {
+  return blocks.map((block) => {
+    if (block.category === "content" && block.type === "video_embed" && typeof block.data?.url === "string") {
+      const localPath = urlMap.get(block.data.url);
+      if (localPath) {
+        return {
+          ...block,
+          data: { ...block.data, url: localPath, mimeType: "video/mp4", sourceType: "upload" },
         };
       }
     }
@@ -151,12 +239,6 @@ export async function buildScorm12Zip(course: CourseForExport): Promise<Buffer> 
     href: `content/page_${index}.html`,
   }));
 
-  const manifestXml = buildManifest12({
-    courseId: course.id,
-    courseTitle: course.title,
-    pages: pageEntries,
-  });
-  zip.file("imsmanifest.xml", manifestXml);
   zip.file("scorm-api.js", SCORM_API_JS);
 
   const contentFolder = zip.folder("content");
@@ -182,15 +264,42 @@ export async function buildScorm12Zip(course: CourseForExport): Promise<Buffer> 
 
   const imageUrls = collectImageUrls(course);
   const imageUrlMap = new Map<string, string>();
+  const exportWarnings: string[] = [];
 
   const imageResults = await Promise.all(
     imageUrls.map((url, idx) => fetchAndBundleImage(url, idx, contentFolder))
   );
 
-  for (const result of imageResults) {
-    if (result) {
-      imageUrlMap.set(result.originalUrl, result.localPath);
-    }
+  imageResults.forEach((result, idx) => {
+    if (result) imageUrlMap.set(result.originalUrl, result.localPath);
+    else exportWarnings.push(`Could not bundle image asset: ${imageUrls[idx]}`);
+  });
+
+  const videoUrls = collectVideoUrls(course);
+  const videoUrlMap = new Map<string, string>();
+  const videoResults = await Promise.all(
+    videoUrls.map((url, idx) => fetchAndBundleVideo(url, idx, contentFolder))
+  );
+  videoResults.forEach((result, idx) => {
+    if (result) videoUrlMap.set(result.originalUrl, result.localPath);
+    else exportWarnings.push(`Could not bundle MP4 video asset: ${videoUrls[idx]}`);
+  });
+
+  const additionalManifestFiles = new Set<string>(["scorm-api.js"]);
+  for (const localImage of imageUrlMap.values()) additionalManifestFiles.add(`content/${localImage}`);
+  for (const localVideo of videoUrlMap.values()) additionalManifestFiles.add(`content/${localVideo}`);
+  if (logoPath) additionalManifestFiles.add(`content/${logoPath}`);
+
+  const manifestXml = buildManifest12({
+    courseId: course.id,
+    courseTitle: course.title,
+    pages: pageEntries,
+    additionalFiles: Array.from(additionalManifestFiles),
+  });
+  zip.file("imsmanifest.xml", manifestXml);
+
+  if (exportWarnings.length > 0) {
+    console.warn(`SCORM export warnings for course ${course.id}:`, exportWarnings);
   }
 
   let totalScoreMax = 0;
@@ -228,7 +337,7 @@ export async function buildScorm12Zip(course: CourseForExport): Promise<Buffer> 
           totalScoreMax: Math.max(1, totalScoreMax),
           gradingKeysByBlockId,
         };
-        const rewrittenBlocks = rewriteImageUrls(page.blocks, imageUrlMap);
+        const rewrittenBlocks = rewriteVideoUrls(rewriteImageUrls(page.blocks, imageUrlMap), videoUrlMap);
         const html = renderPageHtml({
           pageTitle: page.title,
           blocks: rewrittenBlocks,

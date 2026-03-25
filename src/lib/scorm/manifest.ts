@@ -22,9 +22,13 @@ export function buildManifest12(options: {
   courseId: string;
   courseTitle: string;
   pages: PageEntry[];
+  additionalFiles?: string[];
 }): string {
-  const { courseId, courseTitle, pages } = options;
+  const { courseId, courseTitle, pages, additionalFiles = [] } = options;
   const safeId = courseId.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/^([^a-zA-Z])/, "c_$1");
+  const extraFiles = additionalFiles
+    .map((f) => `      <file href="${escapeXml(f)}" />`)
+    .join("\n");
   const items = pages
     .map(
       (p, i) =>
@@ -34,7 +38,7 @@ export function buildManifest12(options: {
   const resources = pages
     .map(
       (p) =>
-        `    <resource identifier="res_${p.identifier}" type="webcontent" adlcp:scormtype="sco" href="${escapeXml(p.href)}">\n      <file href="${escapeXml(p.href)}" />\n    </resource>`
+        `    <resource identifier="res_${p.identifier}" type="webcontent" adlcp:scormtype="sco" href="${escapeXml(p.href)}">\n      <file href="${escapeXml(p.href)}" />${extraFiles ? `\n${extraFiles}` : ""}\n    </resource>`
     )
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>

@@ -38,10 +38,29 @@ async function generateTemplate() {
           }),
           new Paragraph({ text: "" }),
 
+          // Introduction (pre-Module content)
+          new Paragraph({
+            text: "Introduction",
+            heading: HeadingLevel.HEADING_1,
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "Everything in this Introduction section will be imported as the course introduction page (before Module 1).",
+                italics: true,
+                color: "666666",
+              }),
+            ],
+          }),
+          new Paragraph({
+            text: "Use this section for course overview, how to use the course, prerequisites, time expectations, and any opening remarks for learners.",
+          }),
+          new Paragraph({ text: "" }),
+
           // Course Overview
           new Paragraph({
             text: "Course Overview",
-            heading: HeadingLevel.HEADING_1,
+            heading: HeadingLevel.HEADING_2,
           }),
           new Paragraph({
             text: "Write a 2-4 sentence description of what this course covers and what learners will gain from completing it.",
@@ -51,7 +70,7 @@ async function generateTemplate() {
           // Target Audience
           new Paragraph({
             text: "Target Audience",
-            heading: HeadingLevel.HEADING_1,
+            heading: HeadingLevel.HEADING_2,
           }),
           new Paragraph({
             text: "Describe who this course is designed for (e.g., corporate professionals, undergraduate students, healthcare workers).",
@@ -61,7 +80,7 @@ async function generateTemplate() {
           // Learning Outcomes
           new Paragraph({
             text: "Learning Outcomes",
-            heading: HeadingLevel.HEADING_1,
+            heading: HeadingLevel.HEADING_2,
           }),
           new Paragraph({
             text: "By the end of this course, learners will be able to:",
@@ -87,7 +106,7 @@ async function generateTemplate() {
           // Assessment Plan
           new Paragraph({
             text: "Assessment Plan",
-            heading: HeadingLevel.HEADING_1,
+            heading: HeadingLevel.HEADING_2,
           }),
           new Paragraph({
             text: "Describe how learners will be assessed (e.g., knowledge checks throughout each module, end-of-module quizzes, final assessment).",

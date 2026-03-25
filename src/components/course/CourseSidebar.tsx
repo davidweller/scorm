@@ -22,8 +22,8 @@ import {
 
 const BUILD_STAGES = [
   { key: "blueprint", label: "Blueprint", path: "blueprint" },
-  { key: "generate", label: "Generate Lessons", path: "generate" },
-  { key: "interactions", label: "Generate Interactions", path: "generate-interactions" },
+  { key: "generate", label: "Create Lessons", path: "generate" },
+  { key: "interactions", label: "Create Interactions", path: "generate-interactions" },
   { key: "review", label: "Review", path: "review" },
   { key: "preview", label: "Preview", path: "preview" },
   { key: "export", label: "Export", path: "export" },

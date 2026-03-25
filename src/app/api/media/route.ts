@@ -65,14 +65,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "file is required" }, { status: 400 });
     }
 
-    if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ error: "Only image files are allowed" }, { status: 400 });
+    const fileName = file.name || "";
+    const lowerName = fileName.toLowerCase();
+    const isImage = file.type.startsWith("image/");
+    const hasMp4Mime = file.type === "video/mp4";
+    const hasMp4Ext = lowerName.endsWith(".mp4");
+    const isMp4 = hasMp4Mime && hasMp4Ext;
+    if (!isImage && !isMp4) {
+      return NextResponse.json(
+        { error: "Only image files and MP4 videos are allowed" },
+        { status: 400 }
+      );
+    }
+    if (hasMp4Mime !== hasMp4Ext) {
+      return NextResponse.json(
+        { error: "MP4 uploads must use video/mp4 MIME type and a .mp4 extension" },
+        { status: 400 }
+      );
     }
 
-    const maxSize = 4.5 * 1024 * 1024;
+    const maxSize = isMp4 ? 100 * 1024 * 1024 : 4.5 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: `File too large. Maximum size is 4.5MB, got ${(file.size / 1024 / 1024).toFixed(2)}MB` },
+        {
+          error: `File too large. Maximum size is ${isMp4 ? "100MB" : "4.5MB"}, got ${(
+            file.size /
+            1024 /
+            1024
+          ).toFixed(2)}MB`,
+        },
         { status: 400 }
       );
     }
