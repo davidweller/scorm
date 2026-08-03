@@ -6,7 +6,7 @@ import { analyzeCourseDocument, type ImportedCourseData } from "@/lib/ai-course-
 import { getOpenAIClient } from "@/lib/ai";
 import { uploadBlob, isBlobConfigured } from "@/lib/blob";
 
-export const maxDuration = 300; // 5 minutes for large document processing
+export const maxDuration = 600; // section-by-section import can take several minutes
 
 const MAX_FILE_SIZE = 4.5 * 1024 * 1024; // 4.5MB (Vercel serverless limit)
 
@@ -54,8 +54,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Use a longer timeout for document import (10 minutes) since large documents can take a while
-    const client = getOpenAIClient(apiKey, { timeout: 600000 });
+    // Per-section analysis: fail a stuck OpenAI call after 3 minutes (no retries —
+    // the SDK's default maxRetries=2 turns a 10-minute timeout into ~15+ minutes).
+    const client = getOpenAIClient(apiKey, { timeout: 180000, maxRetries: 0 });
     if (!client) {
       return NextResponse.json(
         { error: "OpenAI API key not configured. Add OPENAI_API_KEY to .env or provide your own key." },
@@ -134,7 +135,8 @@ export async function POST(request: Request) {
   } catch (e) {
     console.error("Import error:", e);
     const message = e instanceof Error ? e.message : "Import failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const timedOut = /timed?\s*out|timeout/i.test(message);
+    return NextResponse.json({ error: message }, { status: timedOut ? 504 : 500 });
   }
 }
 

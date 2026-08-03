@@ -254,18 +254,7 @@ export function getFlowCompletionV2(course: CourseApiResponse): FlowCompletionV2
     if (!hasInteractions) {
       return { status: "not_started", subtext: "No interactions yet", isComplete: false };
     }
-    const lessonsWithInteractions = (course.modules ?? []).reduce((count, mod) => {
-      return count + (mod.lessons ?? []).filter((l) => 
-        (l.pages ?? []).some((p) => (p.blocks ?? []).some(b => b.category === "interaction"))
-      ).length;
-    }, 0);
-    if (lessonsWithInteractions < totalLessons) {
-      return {
-        status: "in_progress",
-        subtext: `${lessonsWithInteractions}/${totalLessons} lessons have interactions`,
-        isComplete: false,
-      };
-    }
+
     return { status: "complete", subtext: "Interactions added", isComplete: true };
   })();
 

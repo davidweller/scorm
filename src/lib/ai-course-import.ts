@@ -1,6 +1,9 @@
 /**
  * AI-powered course import from DOCX documents.
  * Uses OpenAI to analyze document content and extract course structure.
+ *
+ * Large docs are split on Module headings and analyzed per-section so a single
+ * OpenAI call cannot hang for 10+ minutes generating 65k tokens of JSON.
  */
 
 import OpenAI from "openai";
@@ -16,6 +19,9 @@ import type {
 } from "@/types/course";
 
 const IMPORT_MODEL = process.env.OPENAI_IMPORT_MODEL || "gpt-5.2";
+/** Soft cap for a single section completion — keeps per-call latency bounded. */
+const SECTION_MAX_OUTPUT_TOKENS = 16384;
+const METADATA_MAX_OUTPUT_TOKENS = 4096;
 
 export interface ImportedBlock {
   category: "content" | "interaction";
@@ -48,41 +54,13 @@ export interface ImportedCourseData {
   modules: ImportedModule[];
 }
 
-const SYSTEM_PROMPT = `You are an expert instructional designer. Analyze a course document and extract the complete course structure as JSON.
-
-DOCUMENT STRUCTURE:
-- Content BEFORE "Module 1" contains metadata AND learner-facing introduction content (course overview, how to use the course, prerequisites, etc.).
-- Course content starts at "Module 1" (or "# Module 1"), but you MUST NOT omit the pre-Module content.
-- Each "Module X" heading marks a new module
-- All content within a module goes on a SINGLE page
-
-REQUIRED OUTPUT FORMAT:
-{
-  "title": "Course title from document",
-  "overview": "2-4 sentence course description",
-  "audience": "Target audience if mentioned",
-  "tone": "formal|conversational|technical|friendly",
-  "ilos": ["Learning outcome 1", "Learning outcome 2", ...],
-  "assessmentPlan": "Assessment approach if mentioned",
-  "modules": [
-    {
-      "title": "Module 1 - Title Here",
-      "lessons": [{
-        "title": "Module 1 - Title Here",
-        "pages": [{
-          "title": "Module 1 - Title Here",
-          "blocks": [
-            { "category": "content", "type": "text", "data": { "text": "<p>First paragraph of actual content...</p>" } },
-            { "category": "content", "type": "heading", "data": { "level": 2, "text": "Section Heading" } },
-            { "category": "content", "type": "text", "data": { "text": "<p>More paragraph content...</p>" } }
-          ]
-        }]
-      }]
-    }
-  ]
+interface DocumentSection {
+  title: string;
+  content: string;
+  kind: "introduction" | "module";
 }
 
-CONTENT BLOCK TYPES - CRITICAL: Every paragraph becomes a "text" block with category "content":
+const BLOCK_TYPES_PROMPT = `CONTENT BLOCK TYPES - CRITICAL: Every paragraph becomes a "text" block with category "content":
 - "text": { "text": "<p>The actual paragraph text goes here</p>" } - USE FOR ALL PARAGRAPHS
 - "text": { "text": "<ul><li>Item 1</li><li>Item 2</li></ul>" } - USE FOR BULLET LISTS
 - "text": { "text": "<ol><li>Step 1</li><li>Step 2</li></ol>" } - USE FOR NUMBERED LISTS
@@ -101,88 +79,361 @@ INTERACTION BLOCK TYPES (for quizzes/questions):
 - "matching": { "question": "...", "pairs": [{"left":"...","right":"..."}], "explanation": "..." }
 - "dialog_cards": { "title": "...", "cards": [{"front":"...","back":"..."}] }
 
-CRITICAL RULES - YOU MUST FOLLOW THESE:
-1. EVERY paragraph of text MUST become a block: { "category": "content", "type": "text", "data": { "text": "<p>actual paragraph content here</p>" } }
-2. DO NOT skip or summarize - include the FULL TEXT of every single paragraph from the document
-3. Each module = 1 lesson = 1 page (flat structure)
-4. H2 headings (##) become: { "category": "content", "type": "heading", "data": { "level": 2, "text": "heading text" } }
-5. H3 headings (###) become: { "category": "content", "type": "heading", "data": { "level": 3, "text": "heading text" } }
-6. Bullet lists become: { "category": "content", "type": "text", "data": { "text": "<ul><li>item</li></ul>" } }
-7. Numbered lists become: { "category": "content", "type": "text", "data": { "text": "<ol><li>item</li></ol>" } }
-8. Keep content in document order
-9. Look for quiz patterns: "Quiz:", "Question:", "True or False:", "Match:", "Flashcards:" - when you convert these to interaction blocks, DO NOT also create text blocks for the same content. The interaction block REPLACES the text, not duplicates it.
-10. Preserve formatting: <strong> for bold, <em> for italic
-11. IMAGE MARKERS: If the document contains markers in this exact form: [[IMAGE url="..." alt="..."]]
-    - You MUST create a separate image block at that exact position:
-      { "category": "content", "type": "image", "data": { "url": "<url>", "alt": "<alt>" } }
-    - If url is empty, still create the image block (so the user can fix it later).
-    - Do NOT wrap the marker in a text block; the image block replaces the marker.
-12. INTRODUCTION CONTENT: ALL content before \"Module 1\" must be included as an \"Introduction\" module BEFORE Module 1:
-    {
-      \"title\": \"Introduction\",
-      \"lessons\": [{
-        \"title\": \"Introduction\",
-        \"pages\": [{
-          \"title\": \"Introduction\",
-          \"blocks\": [ ... all pre-Module content converted into blocks in order ... ]
-        }]
-      }]
+CRITICAL RULES:
+1. EVERY paragraph MUST become a block with full text — do not summarize or omit.
+2. Keep content in document order.
+3. H2/## -> heading level 2; H3/### -> heading level 3.
+4. Quiz patterns ("Quiz:", "Question:", "True or False:", "Match:", "Flashcards:") become interaction blocks and REPLACE the corresponding text (do not duplicate).
+5. Preserve <strong> and <em>.
+6. IMAGE MARKERS [[IMAGE url="..." alt="..."]] must become image blocks at that position (not wrapped in text). Empty url is allowed.
+7. A substantial section should have many blocks; few blocks usually means missing content.`;
+
+const METADATA_SYSTEM_PROMPT = `You extract course metadata from a training document. Respond with JSON only:
+{
+  "title": "Course title",
+  "overview": "2-4 sentence course description",
+  "audience": "Target audience if mentioned, else empty string",
+  "tone": "formal|conversational|technical|friendly",
+  "ilos": ["Learning outcome 1", ...],
+  "assessmentPlan": "Assessment approach if mentioned, else empty string"
+}
+Use only information present in the document. If a field is unknown, use an empty string or empty array.`;
+
+const SECTION_SYSTEM_PROMPT = `You are an expert instructional designer. Convert ONE course section into ordered content/interaction blocks as JSON.
+
+REQUIRED OUTPUT FORMAT:
+{
+  "blocks": [
+    { "category": "content", "type": "text", "data": { "text": "<p>...</p>" } }
+  ]
+}
+
+${BLOCK_TYPES_PROMPT}
+
+Do not invent modules or lessons — only return the blocks array for this section.
+IMPORTANT: The section title becomes the page title automatically. Do NOT create a heading block that repeats the section title (e.g. "Module 1: ..."). Start with the first real content after that title (e.g. "Module Overview").`;
+
+function tokenParams(maxTokens: number): Record<string, number> {
+  if (IMPORT_MODEL.startsWith("gpt-5")) {
+    return { max_completion_tokens: maxTokens };
+  }
+  return { max_tokens: maxTokens };
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { name?: string; message?: string; code?: string };
+  if (e.name === "APIConnectionTimeoutError") return true;
+  if (e.code === "ETIMEDOUT" || e.code === "ECONNABORTED") return true;
+  return typeof e.message === "string" && /timed?\s*out|timeout/i.test(e.message);
+}
+
+/**
+ * Split on "# Module N..." headings so each AI call stays small enough to finish.
+ * Content before the first Module heading becomes an Introduction section.
+ */
+export function splitDocumentIntoSections(documentContent: string): DocumentSection[] {
+  const moduleRegex = /^(#{1,3})\s*(Module\s+\d+[^\n]*)$/gim;
+  const matches = [...documentContent.matchAll(moduleRegex)];
+
+  if (matches.length === 0) {
+    return [{ title: "Course Content", content: documentContent, kind: "module" }];
+  }
+
+  const sections: DocumentSection[] = [];
+  const firstModuleIndex = matches[0].index ?? 0;
+  const intro = documentContent.slice(0, firstModuleIndex).trim();
+  const introBody = intro
+    .replace(/^=== DOCUMENT CONTENT ===[\s\S]*?(?=\n\n)/, "")
+    .trim();
+  if (introBody.length > 80) {
+    sections.push({ title: "Introduction", content: intro, kind: "introduction" });
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index ?? 0;
+    const end =
+      i + 1 < matches.length
+        ? (matches[i + 1].index ?? documentContent.length)
+        : documentContent.length;
+    const title = (matches[i][2] || `Module ${i + 1}`).trim();
+    sections.push({
+      title,
+      content: documentContent.slice(start, end).trim(),
+      kind: "module",
+    });
+  }
+
+  return sections;
+}
+
+function normalizeTitleForCompare(value: string): string {
+  return value
+    .replace(/^#+\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/** Drop a leading heading that only repeats the page/module title. */
+function stripRedundantTitleHeading(title: string, blocks: ImportedBlock[]): ImportedBlock[] {
+  if (blocks.length === 0) return blocks;
+  const normalizedTitle = normalizeTitleForCompare(title);
+  if (!normalizedTitle) return blocks;
+
+  let start = 0;
+  while (start < blocks.length) {
+    const block = blocks[start];
+    if (block.category !== "content" || block.type !== "heading") break;
+    const text = typeof block.data?.text === "string" ? block.data.text : "";
+    if (!text || normalizeTitleForCompare(text) !== normalizedTitle) break;
+    start += 1;
+  }
+  return start > 0 ? blocks.slice(start) : blocks;
+}
+
+/** Remove the leading "# Module N..." line so the model is less likely to re-emit it. */
+function contentWithoutSectionTitle(section: DocumentSection): string {
+  const titleNorm = normalizeTitleForCompare(section.title);
+  const lines = section.content.split("\n");
+  let i = 0;
+  while (i < lines.length && !lines[i].trim()) i += 1;
+  if (i < lines.length) {
+    const headingMatch = lines[i].match(/^#{1,3}\s*(.+)$/);
+    if (headingMatch && normalizeTitleForCompare(headingMatch[1]) === titleNorm) {
+      i += 1;
+      while (i < lines.length && !lines[i].trim()) i += 1;
+      return lines.slice(i).join("\n").trim();
     }
-    - Include Course Overview and any other pre-Module text here as blocks (do not omit it).
-    - Still also populate the top-level JSON fields: title, overview, audience, tone, ilos, assessmentPlan.
-    - IMPORTANT: Even if you extract Course Overview into the top-level \"overview\" field, you MUST ALSO include that same overview text as blocks in the Introduction page.
-13. A module with substantial content should have 20-100+ blocks. If you only have a few blocks, you're missing content!`;
+  }
+  return section.content;
+}
+
+function moduleFromSection(title: string, blocks: ImportedBlock[]): ImportedModule {
+  return {
+    title,
+    lessons: [
+      {
+        title,
+        pages: [{ title, blocks: stripRedundantTitleHeading(title, blocks) }],
+      },
+    ],
+  };
+}
+
+async function extractCourseMetadata(
+  client: OpenAI,
+  documentContent: string,
+  moduleTitles: string[]
+): Promise<Pick<ImportedCourseData, "title" | "overview" | "audience" | "tone" | "ilos" | "assessmentPlan">> {
+  const head = documentContent.slice(0, 12000);
+  const titlesHint =
+    moduleTitles.length > 0
+      ? `\nKnown module titles: ${moduleTitles.join(" | ")}`
+      : "";
+
+  console.log(`[Import] Extracting metadata (${head.length} chars)...`);
+  const startTime = Date.now();
+  const response = await client.chat.completions.create({
+    model: IMPORT_MODEL,
+    messages: [
+      { role: "system", content: METADATA_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Extract course metadata from this document.${titlesHint}\n\n${head}`,
+      },
+    ],
+    response_format: { type: "json_object" },
+    ...tokenParams(METADATA_MAX_OUTPUT_TOKENS),
+  });
+  console.log(`[Import] Metadata done in ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
+
+  const text = response.choices[0]?.message?.content;
+  if (!text) {
+    return {
+      title: "Imported Course",
+      overview: "",
+      audience: "",
+      tone: undefined,
+      ilos: [],
+      assessmentPlan: "",
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(text) as Partial<ImportedCourseData>;
+    return {
+      title: typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim() : "Imported Course",
+      overview: typeof parsed.overview === "string" ? parsed.overview : "",
+      audience: typeof parsed.audience === "string" ? parsed.audience : undefined,
+      tone: typeof parsed.tone === "string" ? parsed.tone : undefined,
+      ilos: Array.isArray(parsed.ilos)
+        ? parsed.ilos.filter((x): x is string => typeof x === "string")
+        : [],
+      assessmentPlan: typeof parsed.assessmentPlan === "string" ? parsed.assessmentPlan : undefined,
+    };
+  } catch {
+    return {
+      title: "Imported Course",
+      overview: "",
+      audience: undefined,
+      tone: undefined,
+      ilos: [],
+      assessmentPlan: undefined,
+    };
+  }
+}
+
+async function extractSectionBlocks(
+  client: OpenAI,
+  section: DocumentSection,
+  index: number,
+  total: number
+): Promise<ImportedBlock[]> {
+  const sectionBody = contentWithoutSectionTitle(section);
+  console.log(
+    `[Import] Section ${index + 1}/${total}: "${section.title}" (${sectionBody.length} chars)...`
+  );
+  const startTime = Date.now();
+
+  const response = await client.chat.completions.create({
+    model: IMPORT_MODEL,
+    messages: [
+      { role: "system", content: SECTION_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Extract blocks for section "${section.title}". Do not include a heading for that title — it is already the page title.\n\n${sectionBody}`,
+      },
+    ],
+    response_format: { type: "json_object" },
+    ...tokenParams(SECTION_MAX_OUTPUT_TOKENS),
+  });
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  const text = response.choices[0]?.message?.content;
+  if (!text) {
+    console.warn(`[Import] Section ${index + 1} empty response after ${elapsed}s`);
+    return [];
+  }
+
+  console.log(
+    `[Import] Section ${index + 1} done in ${elapsed}s (${text.length} chars, finish_reason=${response.choices[0]?.finish_reason})`
+  );
+
+  try {
+    const parsed = JSON.parse(text) as { blocks?: ImportedBlock[] };
+    return Array.isArray(parsed.blocks) ? parsed.blocks : [];
+  } catch (e) {
+    const parseError = e instanceof Error ? e.message : "Unknown parse error";
+    throw new Error(`Failed to parse section "${section.title}" as JSON: ${parseError}`);
+  }
+}
 
 export async function analyzeCourseDocument(
   client: OpenAI,
   documentContent: string
 ): Promise<ImportedCourseData> {
-  console.log(`[Import] Analyzing document (${documentContent.length} chars) with model: ${IMPORT_MODEL}`);
-  console.log(`[Import] Starting API call at ${new Date().toISOString()}...`);
-  
   const startTime = Date.now();
-  
-  // Determine token parameter based on model - newer models use max_completion_tokens
-  const isGpt5Model = IMPORT_MODEL.startsWith("gpt-5");
-  const tokenParams = isGpt5Model 
-    ? { max_completion_tokens: 65536 }
-    : { max_tokens: 16384 };
-  
-  const response = await client.chat.completions.create({
-    model: IMPORT_MODEL,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { 
-        role: "user", 
-        content: `Analyze this course document and extract the complete structure as JSON:\n\n${documentContent}` 
-      },
-    ],
-    response_format: { type: "json_object" },
-    ...tokenParams,
-  });
+  const sections = splitDocumentIntoSections(documentContent);
+  const moduleTitles = sections.filter((s) => s.kind === "module").map((s) => s.title);
 
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(`[Import] API call completed in ${elapsed}s`);
-
-  const text = response.choices[0]?.message?.content;
-  if (!text) {
-    throw new Error("Empty AI response when analyzing document");
-  }
-
-  console.log(`[Import] Received response (${text.length} chars), finish_reason: ${response.choices[0]?.finish_reason}`);
+  console.log(
+    `[Import] Analyzing document (${documentContent.length} chars) with model: ${IMPORT_MODEL}`
+  );
+  console.log(
+    `[Import] Split into ${sections.length} section(s): ${sections.map((s) => s.title).join(" | ")}`
+  );
 
   try {
-    const parsed = JSON.parse(text) as ImportedCourseData;
+    const metadata = await extractCourseMetadata(client, documentContent, moduleTitles);
+
+    const modules: ImportedModule[] = [];
+    for (let i = 0; i < sections.length; i++) {
+      const section = sections[i];
+      const blocks = await extractSectionBlocks(client, section, i, sections.length);
+      modules.push(moduleFromSection(section.title, blocks));
+    }
+
+    const parsed: ImportedCourseData = {
+      ...metadata,
+      modules,
+    };
+
     const result = validateAndNormalizeImportedCourse(parsed);
-    
     const counts = countImportedContent(result);
-    console.log(`[Import] Extracted: ${counts.modules} modules, ${counts.lessons} lessons, ${counts.pages} pages, ${counts.contentBlocks} content blocks, ${counts.interactions} interactions`);
-    
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(
+      `[Import] Completed in ${elapsed}s — ${counts.modules} modules, ${counts.lessons} lessons, ${counts.pages} pages, ${counts.contentBlocks} content blocks, ${counts.interactions} interactions`
+    );
     return result;
   } catch (e) {
-    const parseError = e instanceof Error ? e.message : "Unknown parse error";
-    throw new Error(`Failed to parse AI response as JSON: ${parseError}`);
+    if (isTimeoutError(e)) {
+      throw new Error(
+        "Document analysis timed out while calling OpenAI. Large modules are processed one at a time — retry, or split the Word document into smaller files."
+      );
+    }
+    throw e;
   }
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'");
+}
+
+function decodePossiblyEscapedHtml(value: string): string {
+  let out = value;
+  // Some model outputs arrive double-escaped (e.g. &amp;lt;strong&amp;gt;).
+  for (let i = 0; i < 2; i++) {
+    const decoded = decodeHtmlEntities(out);
+    if (decoded === out) break;
+    out = decoded;
+  }
+  return out;
+}
+
+function normalizeContentBlockData(block: ImportedBlock): ImportedBlock {
+  if (block.category !== "content") return block;
+  const data = (block.data ?? {}) as Record<string, unknown>;
+
+  if (block.type === "text" || block.type === "key_insight") {
+    const text = typeof data.text === "string" ? data.text : "";
+    return {
+      ...block,
+      data: {
+        ...data,
+        text: decodePossiblyEscapedHtml(text),
+      },
+    };
+  }
+
+  if (block.type === "key_point") {
+    const text = typeof data.text === "string" ? data.text : "";
+    return {
+      ...block,
+      data: {
+        ...data,
+        text: decodePossiblyEscapedHtml(text),
+      },
+    };
+  }
+
+  if (block.type === "table") {
+    const html = typeof data.html === "string" ? data.html : "";
+    return {
+      ...block,
+      data: {
+        ...data,
+        html: decodePossiblyEscapedHtml(html),
+      },
+    };
+  }
+
+  return block;
 }
 
 function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedCourseData {
@@ -218,7 +469,7 @@ function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedC
         // Deterministically convert any [[IMAGE ...]] markers that slipped into text blocks
         // into separate image blocks. This avoids relying on the model to always create
         // proper image blocks from markers.
-        page.blocks = expandImageMarkersInBlocks(page.blocks);
+        page.blocks = expandImageMarkersInBlocks(page.blocks).map(normalizeContentBlockData);
 
         // Now validate/filter blocks (after expansion) so image blocks are retained.
         page.blocks = page.blocks.filter((block) => {
@@ -232,6 +483,13 @@ function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedC
           }
           return valid;
         });
+
+        // Page title is rendered separately (micro-label + h1); drop a duplicate title heading.
+        const beforeTitleStrip = page.blocks.length;
+        page.blocks = stripRedundantTitleHeading(page.title, page.blocks);
+        if (page.blocks.length !== beforeTitleStrip) {
+          console.log(`[Import] Removed duplicate title heading from page "${page.title}"`);
+        }
 
         if (page.blocks.length !== originalCount) {
           console.log(`[Import] Filtered ${originalCount - page.blocks.length} blocks from page "${page.title}"`);

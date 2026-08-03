@@ -358,9 +358,10 @@ export function renderPageHtml(options: {
         })()
       : "";
 
+  const breadcrumbTitle = lessonIndex !== undefined && lessonTitle ? lessonTitle.trim() : "";
   const microLabelHtml =
-    moduleIndex !== undefined && moduleTitle
-      ? `<p class="micro-label">MODULE ${moduleIndex + 1}${lessonIndex !== undefined && lessonTitle ? ` · ${lessonTitle}` : ""}</p>`
+    moduleIndex !== undefined && moduleTitle && breadcrumbTitle
+      ? `<p class="micro-label">${escapeHtml(breadcrumbTitle)}</p>`
       : "";
 
   const pageIndex = scormRuntime?.pageIndex ?? 0;

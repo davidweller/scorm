@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Fragment, useCallback } from "react";
+import { useState, Fragment, useCallback, useEffect, useRef } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import type { ImportedCourseData } from "@/lib/ai-course-import";
 import { countImportedContent } from "@/lib/ai-course-import";
@@ -25,14 +25,28 @@ export default function ImportCourseModal({
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportedCourseData | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const resetState = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
     setStep("upload");
     setError(null);
     setFile(null);
     setPreview(null);
     setDragActive(false);
+    setElapsedSeconds(0);
   }, []);
+
+  useEffect(() => {
+    if (step !== "analyzing") return;
+    setElapsedSeconds(0);
+    const id = window.setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [step]);
 
   function handleClose() {
     resetState();
@@ -83,6 +97,10 @@ export default function ImportCourseModal({
     setError(null);
     setStep("analyzing");
 
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
+
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
@@ -94,6 +112,7 @@ export default function ImportCourseModal({
       const res = await fetch("/api/courses/import", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -105,8 +124,15 @@ export default function ImportCourseModal({
       setPreview(previewData);
       setStep("preview");
     } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        return;
+      }
       setError(e instanceof Error ? e.message : "Failed to analyze document");
       setStep("upload");
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
     }
   }
 
@@ -267,10 +293,13 @@ export default function ImportCourseModal({
                     <div className="py-12 text-center">
                       <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-gray-200 border-t-blue-600" />
                       <p className="mt-4 text-sm text-gray-600">
-                        Analyzing document structure...
+                        Analyzing document by module...
                       </p>
                       <p className="mt-1 text-xs text-gray-500">
-                        This may take 30-60 seconds depending on document size
+                        Large Word docs are processed section by section and can take several minutes
+                      </p>
+                      <p className="mt-3 text-xs tabular-nums text-gray-400">
+                        Elapsed: {elapsedSeconds}s
                       </p>
                     </div>
                   )}

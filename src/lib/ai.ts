@@ -4,12 +4,18 @@
 
 import OpenAI from "openai";
 
-export function getOpenAIClient(apiKey?: string | null, options?: { timeout?: number }): OpenAI | null {
+export function getOpenAIClient(
+  apiKey?: string | null,
+  options?: { timeout?: number; maxRetries?: number }
+): OpenAI | null {
   const key = apiKey?.trim() || process.env.OPENAI_API_KEY?.trim();
   if (!key) return null;
-  return new OpenAI({ 
+  return new OpenAI({
     apiKey: key,
     timeout: options?.timeout ?? 60000, // Default 60s, can be overridden
+    // OpenAI retries timed-out requests by default (maxRetries=2), which can
+    // stretch a 10-minute timeout into ~15+ minutes of apparent hang.
+    maxRetries: options?.maxRetries ?? 2,
   });
 }
 
