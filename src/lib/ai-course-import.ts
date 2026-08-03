@@ -67,8 +67,9 @@ const BLOCK_TYPES_PROMPT = `CONTENT BLOCK TYPES - CRITICAL: Every paragraph beco
 - "heading": { "level": 2, "text": "Heading text" } - USE FOR H2/## HEADINGS
 - "heading": { "level": 3, "text": "Subheading text" } - USE FOR H3/### HEADINGS
 - "image": { "url": "https://...", "alt": "description" } - USE FOR IMAGES (see marker rule below)
-- "key_insight": { "text": "<p>Important insight text</p>" }
-- "key_point": { "title": "optional title", "text": "<p>Point content</p>" }
+- "video_embed": { "url": "https://..." } - USE FOR VIDEO MARKERS / YouTube URLs
+- "key_insight": { "text": "<p>Important insight text</p>" } - from "Key Insight:" lines
+- "key_point": { "title": "optional title", "text": "<p>Point content</p>" } - from "Key Point:" lines
 - "table": { "html": "<table>...</table>" }
 
 INTERACTION BLOCK TYPES (for quizzes/questions):
@@ -82,11 +83,17 @@ INTERACTION BLOCK TYPES (for quizzes/questions):
 CRITICAL RULES:
 1. EVERY paragraph MUST become a block with full text — do not summarize or omit.
 2. Keep content in document order.
-3. H2/## -> heading level 2; H3/### -> heading level 3.
-4. Quiz patterns ("Quiz:", "Question:", "True or False:", "Match:", "Flashcards:") become interaction blocks and REPLACE the corresponding text (do not duplicate).
-5. Preserve <strong> and <em>.
-6. IMAGE MARKERS [[IMAGE url="..." alt="..."]] must become image blocks at that position (not wrapped in text). Empty url is allowed.
-7. A substantial section should have many blocks; few blocks usually means missing content.`;
+3. H2/## -> heading level 2; H3/### -> heading level 3. Input may be markdown or HTML; block text/key_*/table fields MUST still be HTML (<p>, <ul>, <strong>, <em>, <table>).
+4. Quiz patterns become interaction blocks and REPLACE the corresponding text (do not duplicate):
+   - "Quiz:", "Question:", "**Q1 (Single choice)**", "**Q2 (Single choice)**", etc.
+   - Options like "- A) …", "- B) … *(correct)*" — set correctIndex from the *(correct)* marker (or "(correct)").
+   - "**Feedback (if correct):**" / "**Feedback (if incorrect):**" — put the correct-path feedback in "explanation".
+   - "True or False:", "Match:", "Flashcards:", "Reflection:"
+5. Flashcards: "**Front:**" / "**Back:**" pairs (under a Flashcards heading or label) → dialog_cards.
+6. Preserve <strong> and <em> (from HTML or converted from ** / *).
+7. IMAGE MARKERS [[IMAGE url="..." alt="..."]] must become image blocks at that position (not wrapped in text). Empty url is allowed.
+8. VIDEO MARKERS [[VIDEO url="..."]] (or bare YouTube URLs) must become video_embed blocks at that position.
+9. A substantial section should have many blocks; few blocks usually means missing content.`;
 
 const METADATA_SYSTEM_PROMPT = `You extract course metadata from a training document. Respond with JSON only:
 {
@@ -129,20 +136,21 @@ function isTimeoutError(error: unknown): boolean {
 }
 
 /**
- * Split on "# Module N..." headings so each AI call stays small enough to finish.
- * Content before the first Module heading becomes an Introduction section.
+ * Split on "# Module N..." and "Course Conclusion" headings so each AI call
+ * stays small enough to finish. Content before the first Module heading becomes
+ * an Introduction section.
  */
 export function splitDocumentIntoSections(documentContent: string): DocumentSection[] {
-  const moduleRegex = /^(#{1,3})\s*(Module\s+\d+[^\n]*)$/gim;
-  const matches = [...documentContent.matchAll(moduleRegex)];
+  const sectionRegex = /^(#{1,3})\s*((?:Module\s+\d+|Course Conclusion)[^\n]*)$/gim;
+  const matches = [...documentContent.matchAll(sectionRegex)];
 
   if (matches.length === 0) {
     return [{ title: "Course Content", content: documentContent, kind: "module" }];
   }
 
   const sections: DocumentSection[] = [];
-  const firstModuleIndex = matches[0].index ?? 0;
-  const intro = documentContent.slice(0, firstModuleIndex).trim();
+  const firstSectionIndex = matches[0].index ?? 0;
+  const intro = documentContent.slice(0, firstSectionIndex).trim();
   const introBody = intro
     .replace(/^=== DOCUMENT CONTENT ===[\s\S]*?(?=\n\n)/, "")
     .trim();
@@ -335,7 +343,9 @@ export async function analyzeCourseDocument(
 ): Promise<ImportedCourseData> {
   const startTime = Date.now();
   const sections = splitDocumentIntoSections(documentContent);
-  const moduleTitles = sections.filter((s) => s.kind === "module").map((s) => s.title);
+  const moduleTitles = sections
+    .filter((s) => s.kind === "module" && /^Module\s+\d+/i.test(s.title))
+    .map((s) => s.title);
 
   console.log(
     `[Import] Analyzing document (${documentContent.length} chars) with model: ${IMPORT_MODEL}`
@@ -469,7 +479,9 @@ function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedC
         // Deterministically convert any [[IMAGE ...]] markers that slipped into text blocks
         // into separate image blocks. This avoids relying on the model to always create
         // proper image blocks from markers.
-        page.blocks = expandImageMarkersInBlocks(page.blocks).map(normalizeContentBlockData);
+        page.blocks = expandVideoMarkersInBlocks(
+          expandImageMarkersInBlocks(page.blocks)
+        ).map(normalizeContentBlockData);
 
         // Now validate/filter blocks (after expansion) so image blocks are retained.
         page.blocks = page.blocks.filter((block) => {
@@ -502,8 +514,30 @@ function validateAndNormalizeImportedCourse(data: ImportedCourseData): ImportedC
 }
 
 function expandImageMarkersInBlocks(blocks: ImportedBlock[]): ImportedBlock[] {
+  return expandMarkersInTextBlocks(blocks, /\[\[IMAGE url="([^"]*)" alt="([^"]*)"\]\]/g, (m) => ({
+    category: "content",
+    type: "image",
+    data: {
+      url: m[1] || "",
+      alt: (m[2] || "").replaceAll("&quot;", "\""),
+    },
+  }));
+}
+
+function expandVideoMarkersInBlocks(blocks: ImportedBlock[]): ImportedBlock[] {
+  return expandMarkersInTextBlocks(blocks, /\[\[VIDEO url="([^"]*)"\]\]/g, (m) => ({
+    category: "content",
+    type: "video_embed",
+    data: { url: m[1] || "" },
+  }));
+}
+
+function expandMarkersInTextBlocks(
+  blocks: ImportedBlock[],
+  markerRegex: RegExp,
+  toBlock: (match: RegExpExecArray) => ImportedBlock
+): ImportedBlock[] {
   const out: ImportedBlock[] = [];
-  const markerRegex = /\[\[IMAGE url="([^"]*)" alt="([^"]*)"\]\]/g;
 
   for (const block of blocks) {
     if (block.category !== "content" || block.type !== "text") {
@@ -512,7 +546,8 @@ function expandImageMarkersInBlocks(blocks: ImportedBlock[]): ImportedBlock[] {
     }
     const data = block.data as { text?: unknown };
     const text = typeof data?.text === "string" ? data.text : "";
-    if (!text || !markerRegex.test(text)) {
+    const probe = new RegExp(markerRegex.source, markerRegex.flags);
+    if (!text || !probe.test(text)) {
       out.push(block);
       continue;
     }
@@ -522,8 +557,6 @@ function expandImageMarkersInBlocks(blocks: ImportedBlock[]): ImportedBlock[] {
     let m: RegExpExecArray | null;
     while ((m = markerRegex.exec(text)) !== null) {
       const before = text.slice(lastIndex, m.index);
-      const url = m[1] || "";
-      const alt = (m[2] || "").replaceAll("&quot;", "\"");
 
       if (before.trim()) {
         out.push({
@@ -533,12 +566,7 @@ function expandImageMarkersInBlocks(blocks: ImportedBlock[]): ImportedBlock[] {
         });
       }
 
-      out.push({
-        category: "content",
-        type: "image",
-        data: { url, alt },
-      });
-
+      out.push(toBlock(m));
       lastIndex = m.index + m[0].length;
     }
 

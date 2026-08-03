@@ -81,9 +81,14 @@ export default function ImportCourseModal({
     }
   }
 
+  function isSupportedImportFile(name: string): boolean {
+    const lower = name.toLowerCase();
+    return lower.endsWith(".docx") || lower.endsWith(".md") || lower.endsWith(".markdown");
+  }
+
   async function handleFileSelect(selectedFile: File) {
-    if (!selectedFile.name.endsWith(".docx")) {
-      setError("Please upload a .docx file");
+    if (!isSupportedImportFile(selectedFile.name)) {
+      setError("Please upload a .docx or .md file");
       return;
     }
 
@@ -197,7 +202,7 @@ export default function ImportCourseModal({
               <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-lg bg-white shadow-xl transition-all">
                 <Dialog.Title className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
                   <span className="font-medium text-gray-900">
-                    {step === "upload" && "Import Course from Word Document"}
+                    {step === "upload" && "Import Course"}
                     {step === "analyzing" && "Analyzing Document..."}
                     {step === "preview" && "Review Imported Course"}
                     {step === "creating" && "Creating Course..."}
@@ -232,7 +237,7 @@ export default function ImportCourseModal({
                       >
                         <input
                           type="file"
-                          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                          accept=".docx,.md,.markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain"
                           onChange={handleFileInput}
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
@@ -253,7 +258,9 @@ export default function ImportCourseModal({
                           <span className="font-medium text-blue-600">Click to upload</span> or drag
                           and drop
                         </p>
-                        <p className="mt-1 text-xs text-gray-500">Word document (.docx) up to 4.5MB</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Word (.docx) or Markdown (.md) from Obsidian, up to 4.5MB
+                        </p>
                       </div>
 
                       <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -271,21 +278,38 @@ export default function ImportCourseModal({
                         </span>
                       </div>
 
-                      <a
-                        href="/templates/course-template.docx"
-                        download
-                        className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                          />
-                        </svg>
-                        Download course template
-                      </a>
+                      <div className="flex flex-wrap gap-x-4 gap-y-2">
+                        <a
+                          href="/templates/course-template.docx"
+                          download
+                          className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                            />
+                          </svg>
+                          Word template
+                        </a>
+                        <a
+                          href="/templates/course-template.md"
+                          download
+                          className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                            />
+                          </svg>
+                          Markdown template
+                        </a>
+                      </div>
                     </div>
                   )}
 
@@ -296,7 +320,7 @@ export default function ImportCourseModal({
                         Analyzing document by module...
                       </p>
                       <p className="mt-1 text-xs text-gray-500">
-                        Large Word docs are processed section by section and can take several minutes
+                        Large documents are processed section by section and can take several minutes
                       </p>
                       <p className="mt-3 text-xs tabular-nums text-gray-400">
                         Elapsed: {elapsedSeconds}s

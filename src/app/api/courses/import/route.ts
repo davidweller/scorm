@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { parseDocx, formatDocumentForAI } from "@/lib/docx-parser";
+import { isMarkdownFile, prepareMarkdownForImport } from "@/lib/markdown-parser";
 import { analyzeCourseDocument, type ImportedCourseData } from "@/lib/ai-course-import";
 import { getOpenAIClient } from "@/lib/ai";
 import { uploadBlob, isBlobConfigured } from "@/lib/blob";
@@ -9,6 +10,15 @@ import { uploadBlob, isBlobConfigured } from "@/lib/blob";
 export const maxDuration = 600; // section-by-section import can take several minutes
 
 const MAX_FILE_SIZE = 4.5 * 1024 * 1024; // 4.5MB (Vercel serverless limit)
+
+const DOCX_TYPES = [
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+];
+
+function isDocxFile(file: File): boolean {
+  return DOCX_TYPES.includes(file.type) || file.name.toLowerCase().endsWith(".docx");
+}
 
 export async function POST(request: Request) {
   try {
@@ -36,13 +46,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "file is required" }, { status: 400 });
     }
 
-    const validTypes = [
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/msword",
-    ];
-    if (!validTypes.includes(file.type) && !file.name.endsWith(".docx")) {
+    const markdown = isMarkdownFile(file);
+    if (!markdown && !isDocxFile(file)) {
       return NextResponse.json(
-        { error: "Invalid file type. Please upload a .docx file." },
+        { error: "Invalid file type. Please upload a .docx or .md file." },
         { status: 400 }
       );
     }
@@ -64,71 +71,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const parsedDoc = await parseDocx(arrayBuffer);
-    let documentContent = formatDocumentForAI(parsedDoc);
+    let documentContent: string;
 
-    // Replace DOCX image tokens with explicit URL markers for the AI.
-    // This preserves image positions while allowing separate image blocks.
-    const tokenToMarker = new Map<string, string>();
-    for (const img of parsedDoc.images ?? []) {
-      const safeAlt = (img.alt || "").replaceAll('"', "&quot;").replaceAll("\n", " ").trim();
-
-      const contentType = img.contentType && img.contentType.startsWith("image/")
-        ? img.contentType
-        : "image/png";
-
-      if (!img.base64) {
-        const alt = safeAlt || "Image failed to import: empty image data";
-        tokenToMarker.set(img.token, `[[IMAGE url="" alt="${alt}"]]`);
-        continue;
-      }
-
-      // If blob upload isn't configured, fall back to a data URL so the image still appears.
-      // (SCORM packaging will bundle data: images into the zip.)
-      if (!isBlobConfigured()) {
-        const dataUrl = `data:${contentType};base64,${img.base64}`;
-        const alt = safeAlt || "Imported image";
-        tokenToMarker.set(img.token, `[[IMAGE url="${dataUrl}" alt="${alt.replaceAll('"', "&quot;")}"]]`);
-        continue;
-      }
-
-      try {
-        const ext = contentType.split("/")[1] || "png";
-        const buffer = Buffer.from(img.base64, "base64");
-        const filename = `docx-${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
-        const pathname = `media/${filename}`;
-
-        const { url } = await uploadBlob(pathname, buffer, { contentType });
-
-        const media = await prisma.media.create({
-          data: {
-            url,
-            filename,
-            mimeType: contentType,
-            size: buffer.length,
-            alt: safeAlt || null,
-            source: "upload",
-          },
-        });
-
-        const alt = safeAlt || media.filename;
-        tokenToMarker.set(img.token, `[[IMAGE url="${media.url}" alt="${alt.replaceAll('"', "&quot;")}"]]`);
-      } catch (e) {
-        const reason = e instanceof Error ? e.message : "upload failed";
-        // If upload fails, fall back to a data URL so the image still appears.
-        const dataUrl = `data:${contentType};base64,${img.base64}`;
-        const alt = safeAlt || `Imported image (upload failed: ${reason})`;
-        tokenToMarker.set(img.token, `[[IMAGE url="${dataUrl}" alt="${alt.replaceAll('"', "&quot;").replaceAll("\n", " ").trim()}"]]`);
-      }
+    if (markdown) {
+      const raw = await file.text();
+      documentContent = prepareMarkdownForImport(raw);
+    } else {
+      documentContent = await prepareDocxForImport(file);
     }
 
-    if (tokenToMarker.size > 0) {
-      documentContent = documentContent.replace(/\[\[IMAGE_TOKEN:([^\]]+)\]\]/g, (m, token) => {
-        const replacement = tokenToMarker.get(String(token));
-        return replacement || m;
-      });
-    }
     const importedData = await analyzeCourseDocument(client, documentContent);
 
     return NextResponse.json({ preview: importedData });
@@ -138,6 +89,76 @@ export async function POST(request: Request) {
     const timedOut = /timed?\s*out|timeout/i.test(message);
     return NextResponse.json({ error: message }, { status: timedOut ? 504 : 500 });
   }
+}
+
+async function prepareDocxForImport(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const parsedDoc = await parseDocx(arrayBuffer);
+  let documentContent = formatDocumentForAI(parsedDoc);
+
+  // Replace DOCX image tokens with explicit URL markers for the AI.
+  // This preserves image positions while allowing separate image blocks.
+  const tokenToMarker = new Map<string, string>();
+  for (const img of parsedDoc.images ?? []) {
+    const safeAlt = (img.alt || "").replaceAll('"', "&quot;").replaceAll("\n", " ").trim();
+
+    const imgContentType = img.contentType && img.contentType.startsWith("image/")
+      ? img.contentType
+      : "image/png";
+
+    if (!img.base64) {
+      const alt = safeAlt || "Image failed to import: empty image data";
+      tokenToMarker.set(img.token, `[[IMAGE url="" alt="${alt}"]]`);
+      continue;
+    }
+
+    // If blob upload isn't configured, fall back to a data URL so the image still appears.
+    // (SCORM packaging will bundle data: images into the zip.)
+    if (!isBlobConfigured()) {
+      const dataUrl = `data:${imgContentType};base64,${img.base64}`;
+      const alt = safeAlt || "Imported image";
+      tokenToMarker.set(img.token, `[[IMAGE url="${dataUrl}" alt="${alt.replaceAll('"', "&quot;")}"]]`);
+      continue;
+    }
+
+    try {
+      const ext = imgContentType.split("/")[1] || "png";
+      const buffer = Buffer.from(img.base64, "base64");
+      const filename = `docx-${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
+      const pathname = `media/${filename}`;
+
+      const { url } = await uploadBlob(pathname, buffer, { contentType: imgContentType });
+
+      const media = await prisma.media.create({
+        data: {
+          url,
+          filename,
+          mimeType: imgContentType,
+          size: buffer.length,
+          alt: safeAlt || null,
+          source: "upload",
+        },
+      });
+
+      const alt = safeAlt || media.filename;
+      tokenToMarker.set(img.token, `[[IMAGE url="${media.url}" alt="${alt.replaceAll('"', "&quot;")}"]]`);
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : "upload failed";
+      // If upload fails, fall back to a data URL so the image still appears.
+      const dataUrl = `data:${imgContentType};base64,${img.base64}`;
+      const alt = safeAlt || `Imported image (upload failed: ${reason})`;
+      tokenToMarker.set(img.token, `[[IMAGE url="${dataUrl}" alt="${alt.replaceAll('"', "&quot;").replaceAll("\n", " ").trim()}"]]`);
+    }
+  }
+
+  if (tokenToMarker.size > 0) {
+    documentContent = documentContent.replace(/\[\[IMAGE_TOKEN:([^\]]+)\]\]/g, (m, token) => {
+      const replacement = tokenToMarker.get(String(token));
+      return replacement || m;
+    });
+  }
+
+  return documentContent;
 }
 
 async function createCourseFromImport(data: ImportedCourseData) {
